@@ -50,6 +50,11 @@ class NutritionViewModel: ObservableObject {
     @Published var history: [NutritionHistoryItem] = []
     @Published var errorMessage: String?
     
+    // 云端同步
+    private let firebaseManager = FirebaseManager.shared
+    @Published var cloudRecords: [NutritionRecord] = []
+    @Published var isSyncing = false
+    
     func analyzeImage() {
         guard let selectedImage = selectedImage else { return }
         
@@ -434,5 +439,111 @@ class NutritionViewModel: ObservableObject {
         print("📏 图片缩放: \(size.width)x\(size.height) → \(newSize.width)x\(newSize.height)")
         
         return resizedImage
+    }
+    
+    // MARK: - 云端同步功能
+    
+    /// 保存分析结果到云端
+    func saveToCloud(result: NutritionResult, image: UIImage) async {
+        guard let userId = firebaseManager.currentUser?.uid else {
+            print("⚠️ 用户未登录，跳过云端保存")
+            return
+        }
+        
+        isSyncing = true
+        
+        do {
+            // 1. 上传图片到 Storage
+            print("📤 开始上传图片到云端...")
+            let imagePath = "nutrition/\(UUID().uuidString).jpg"
+            let imageURL = try await firebaseManager.uploadImage(image, path: imagePath)
+            
+            // 2. 创建云端记录
+            let record = NutritionRecord.from(
+                result: result,
+                imageURL: imageURL,
+                userId: userId
+            )
+            
+            // 3. 保存到 Firestore
+            print("💾 保存营养记录到 Firestore...")
+            try await firebaseManager.saveData(
+                collection: "nutritionRecords",
+                documentId: record.id ?? UUID().uuidString,
+                data: record
+            )
+            
+            print("✅ 云端保存成功")
+            
+            // 4. 刷新云端记录列表
+            await loadCloudRecords()
+            
+        } catch {
+            print("❌ 云端保存失败: \(error.localizedDescription)")
+            errorMessage = "云端保存失败: \(error.localizedDescription)"
+        }
+        
+        isSyncing = false
+    }
+    
+    /// 从云端加载记录
+    func loadCloudRecords() async {
+        guard firebaseManager.currentUser != nil else {
+            print("⚠️ 用户未登录，跳过云端加载")
+            return
+        }
+        
+        isSyncing = true
+        
+        do {
+            print("📥 从云端加载营养记录...")
+            let records = try await firebaseManager.fetchCollection(
+                collection: "nutritionRecords",
+                as: NutritionRecord.self
+            )
+            
+            // 按时间倒序排列
+            cloudRecords = records.sorted { $0.timestamp > $1.timestamp }
+            print("✅ 加载了 \(cloudRecords.count) 条云端记录")
+            
+        } catch {
+            print("❌ 云端加载失败: \(error.localizedDescription)")
+            errorMessage = "云端加载失败: \(error.localizedDescription)"
+        }
+        
+        isSyncing = false
+    }
+    
+    /// 删除云端记录
+    func deleteCloudRecord(_ record: NutritionRecord) async {
+        guard let recordId = record.id else { return }
+        
+        isSyncing = true
+        
+        do {
+            // 1. 删除 Firestore 记录
+            try await firebaseManager.deleteData(
+                collection: "nutritionRecords",
+                documentId: recordId
+            )
+            
+            // 2. 删除 Storage 图片
+            if let imageURL = record.imageURL,
+               let url = URL(string: imageURL),
+               let path = url.pathComponents.dropFirst(4).joined(separator: "/") as String? {
+                try? await firebaseManager.deleteImage(path: path)
+            }
+            
+            // 3. 刷新列表
+            await loadCloudRecords()
+            
+            print("✅ 云端记录删除成功")
+            
+        } catch {
+            print("❌ 云端删除失败: \(error.localizedDescription)")
+            errorMessage = "删除失败: \(error.localizedDescription)"
+        }
+        
+        isSyncing = false
     }
 }

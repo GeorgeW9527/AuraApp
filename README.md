@@ -41,6 +41,7 @@
 
 - **SwiftUI框架**：现代化的UI框架，流畅的用户体验
 - **MVVM架构**：清晰的代码结构，易于维护
+- **Firebase集成**：云端用户认证和数据同步
 - **Charts框架**：美观的数据可视化
 - **相机集成**：原生相机和相册访问
 - **响应式设计**：适配不同尺寸的iPhone
@@ -55,9 +56,11 @@
 ### 安装步骤
 
 1. 克隆或下载项目到本地
-2. 使用Xcode打开 `Aura.xcodeproj`
-3. 选择目标设备或模拟器
-4. 点击运行按钮 (⌘R) 编译并运行
+2. 配置 Firebase（详见 [FIREBASE_SETUP.md](FIREBASE_SETUP.md)）
+3. 使用Xcode打开 `Aura.xcodeproj`
+4. 在 Xcode 中添加 Firebase SDK（File → Add Package Dependencies）
+5. 选择目标设备或模拟器
+6. 点击运行按钮 (⌘R) 编译并运行
 
 ### 权限配置
 
@@ -118,21 +121,46 @@
 
 ```
 Aura/
-├── AuraApp.swift           # 应用入口
-├── ContentView.swift       # 主界面（底部导航）
-├── Views/                  # 视图文件
+├── AuraApp.swift                  # 应用入口
+├── ContentView.swift              # 主界面（底部导航）
+├── Config.swift                   # 配置文件（API密钥等）
+├── GoogleService-Info.plist       # Firebase 配置文件
+├── Views/                         # 视图文件
+│   ├── AuthView.swift             # 登录/注册界面
 │   ├── DailyDashboardView.swift
 │   ├── NutritionAnalysisView.swift
 │   ├── FitnessTrackerView.swift
 │   ├── DeviceManagementView.swift
 │   └── UserProfileView.swift
-├── ViewModels/             # 视图模型
+├── ViewModels/                    # 视图模型
+│   ├── AuthViewModel.swift        # 认证视图模型
 │   └── NutritionViewModel.swift
-├── Helpers/                # 辅助工具
-│   ├── CameraView.swift
-│   └── ImagePicker.swift
-└── Info.plist             # 应用配置和权限
+├── Models/                        # 数据模型
+│   └── CloudModels.swift          # 云端数据模型
+├── Services/                      # 服务层
+│   └── FirebaseManager.swift      # Firebase 管理器
+└── Helpers/                       # 辅助工具
+    ├── CameraView.swift
+    └── ImagePicker.swift
 ```
+
+## ☁️ 云端功能（已实现）
+
+### 用户认证
+- ✅ 邮箱注册和登录
+- ✅ 密码重置
+- ✅ 退出登录
+- ✅ 认证状态管理
+
+### 数据同步
+- ✅ 营养分析记录自动保存到云端
+- ✅ 食物照片上传到 Firebase Storage
+- ✅ 从云端加载历史记录
+- ✅ 跨设备数据同步
+- ✅ 用户配置云端存储
+
+### 配置说明
+详细的 Firebase 配置步骤请查看 [FIREBASE_SETUP.md](FIREBASE_SETUP.md)
 
 ## 未来规划
 
@@ -140,8 +168,8 @@ Aura/
 - [ ] 添加社交功能，与好友分享健康成就
 - [ ] 支持多语言国际化
 - [ ] 添加Apple Watch应用
-- [ ] 云端数据同步和备份
 - [ ] 更多的数据分析和健康建议
+- [ ] 离线模式支持
 
 ## 开发者信息
 

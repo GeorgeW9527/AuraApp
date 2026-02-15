@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct UserProfileView: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
     @State private var userName = "健康达人"
     @State private var userEmail = "user@aura.com"
     @State private var height = 175
@@ -15,6 +16,7 @@ struct UserProfileView: View {
     @State private var age = 28
     @State private var gender = "男"
     @State private var showingEditProfile = false
+    @State private var showingLogoutAlert = false
     
     var bmi: Double {
         let heightInMeters = Double(height) / 100.0
@@ -210,7 +212,9 @@ struct UserProfileView: View {
                     }
                     
                     // Logout Button
-                    Button(action: {}) {
+                    Button(action: {
+                        showingLogoutAlert = true
+                    }) {
                         Text("退出登录")
                             .font(.headline)
                             .foregroundColor(.red)
@@ -232,6 +236,25 @@ struct UserProfileView: View {
                     age: $age,
                     gender: $gender
                 )
+            }
+            .alert("退出登录", isPresented: $showingLogoutAlert) {
+                Button("取消", role: .cancel) {}
+                Button("退出", role: .destructive) {
+                    authViewModel.signOut()
+                }
+            } message: {
+                Text("确定要退出登录吗？")
+            }
+            .onAppear {
+                // 加载用户配置
+                if let profile = authViewModel.userProfile {
+                    userName = profile.displayName ?? "健康达人"
+                    userEmail = profile.email
+                    height = Int(profile.height ?? 175)
+                    weight = Int(profile.weight ?? 70)
+                    age = profile.age ?? 28
+                    gender = profile.gender == "male" ? "男" : profile.gender == "female" ? "女" : "男"
+                }
             }
         }
     }
