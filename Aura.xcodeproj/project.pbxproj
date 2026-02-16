@@ -71,14 +71,14 @@
 			);
 			fileSystemSynchronizedGroups = (
 				DEBBFB5B2F3B40250051BB1D /* Aura */,
-		);
-		name = Aura;
-		packageProductDependencies = (
-			DEBBFBE62F42BF190051BB1D /* FirebaseAuth */,
-			DEBBFBE82F42BF190051BB1D /* FirebaseFirestore */,
-			DEBBFBEA2F42BF190051BB1D /* FirebaseStorage */,
-		);
-		productName = Aura;
+			);
+			name = Aura;
+			packageProductDependencies = (
+				DEBBFBE62F42BF190051BB1D /* FirebaseAuth */,
+				DEBBFBE82F42BF190051BB1D /* FirebaseFirestore */,
+				DEBBFBEA2F42BF190051BB1D /* FirebaseStorage */,
+			);
+			productName = Aura;
 			productReference = DEBBFB592F3B40250051BB1D /* Aura.app */;
 			productType = "com.apple.product-type.application";
 		};

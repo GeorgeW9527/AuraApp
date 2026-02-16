@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import FirebaseCore
 import FirebaseAuth
 import FirebaseFirestore
@@ -23,8 +24,11 @@ class FirebaseManager: ObservableObject {
     @Published var isAuthenticated = false
     
     private init() {
-        // 配置 Firebase
-        FirebaseApp.configure()
+        // 配置 Firebase（只在这里初始化一次）
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+            print("🔥 Firebase 初始化完成")
+        }
         
         self.auth = Auth.auth()
         self.firestore = Firestore.firestore()

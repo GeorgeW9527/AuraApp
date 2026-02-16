@@ -6,7 +6,9 @@
 //
 
 import Foundation
+import Combine
 import FirebaseFirestore
+import FirebaseFirestoreSwift
 
 // MARK: - 营养记录（云端版本）
 
