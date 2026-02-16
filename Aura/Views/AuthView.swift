@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AuthView: View {
-    @StateObject private var viewModel = AuthViewModel()
+    @EnvironmentObject var viewModel: AuthViewModel
     @State private var isLoginMode = true
     
     @State private var email = ""
@@ -102,18 +102,19 @@ struct AuthView: View {
                                 HStack {
                                     if viewModel.isLoading {
                                         ProgressView()
-                                            .tint(.white)
+                                            .tint(.blue)
                                     } else {
                                         Text(isLoginMode ? "登录" : "注册")
                                             .font(.headline)
+                                            .foregroundColor(.blue)
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 50)
                                 .background(Color.white)
-                                .foregroundColor(.blue)
                                 .cornerRadius(25)
                             }
+                            .buttonStyle(.plain)
                             .disabled(viewModel.isLoading)
                             
                             // 忘记密码（仅登录时）
@@ -253,4 +254,5 @@ struct CustomSecureField: View {
 
 #Preview {
     AuthView()
+        .environmentObject(AuthViewModel())
 }

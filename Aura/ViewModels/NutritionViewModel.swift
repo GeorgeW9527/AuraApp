@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import FirebaseAuth
 
 struct NutritionResult: Codable, Identifiable {
     let id: UUID

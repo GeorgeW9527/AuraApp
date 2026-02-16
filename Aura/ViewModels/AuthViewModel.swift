@@ -70,6 +70,7 @@ class AuthViewModel: ObservableObject {
             )
             
             self.userProfile = profile
+            self.isAuthenticated = true
             successMessage = "注册成功！"
             print("✅ 用户注册成功: \(email)")
             
@@ -95,6 +96,7 @@ class AuthViewModel: ObservableObject {
         do {
             let user = try await firebaseManager.signIn(email: email, password: password)
             await loadUserProfile()
+            self.isAuthenticated = true
             successMessage = "登录成功！"
             print("✅ 用户登录成功: \(email)")
             
@@ -111,6 +113,7 @@ class AuthViewModel: ObservableObject {
     func signOut() {
         do {
             try firebaseManager.signOut()
+            self.isAuthenticated = false
             userProfile = nil
             successMessage = "已退出登录"
             print("✅ 用户退出登录")
