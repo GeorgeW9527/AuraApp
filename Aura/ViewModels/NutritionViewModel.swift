@@ -407,15 +407,41 @@ class NutritionViewModel: ObservableObject {
         history.insert(historyItem, at: 0)
         
         // 限制历史记录数量
-        if history.count > 20 {
-            history = Array(history.prefix(20))
+        if history.count > 100 {
+            history = Array(history.prefix(100))
         }
+        
+        // 清除当前分析状态
+        selectedImage = nil
+        analysisResult = nil
+        errorMessage = nil
     }
     
     func clearAnalysis() {
         selectedImage = nil
         analysisResult = nil
         errorMessage = nil
+    }
+    
+    // MARK: - 日历相关
+    
+    private let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+    
+    /// 有记录的日期集合（用于日历标记）
+    var recordDateSet: Set<String> {
+        Set(history.map { dayFormatter.string(from: $0.date) })
+    }
+    
+    /// 获取指定日期的记录
+    func recordsForDate(_ date: Date) -> [NutritionHistoryItem] {
+        let target = dayFormatter.string(from: date)
+        return history
+            .filter { dayFormatter.string(from: $0.date) == target }
+            .sorted { $0.date > $1.date }
     }
     
     // 缩小图片尺寸以加快上传速度

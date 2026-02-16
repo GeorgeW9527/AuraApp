@@ -300,8 +300,11 @@ struct TipCard: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+            
+            Spacer()
         }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(10)
     }
