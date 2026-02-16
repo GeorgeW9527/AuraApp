@@ -7,30 +7,30 @@
 
 import Foundation
 import SwiftUI
-import FirebaseAuth
+import CloudBase
 
 @MainActor
 class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
-    @Published var currentUser: User?
+    @Published var currentUser: TCloudBaseUser?
     @Published var userProfile: UserProfile?
     
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
     
-    private let firebaseManager = FirebaseManager.shared
+    private let cloudBaseManager = CloudBaseManager.shared
     
     init() {
         // 监听认证状态
-        self.isAuthenticated = firebaseManager.isAuthenticated
-        self.currentUser = firebaseManager.currentUser
+        self.isAuthenticated = cloudBaseManager.isAuthenticated
+        self.currentUser = cloudBaseManager.currentUser
         
-        // 订阅 Firebase 认证状态变化
-        firebaseManager.$isAuthenticated
+        // 订阅腾讯云认证状态变化
+        cloudBaseManager.$isAuthenticated
             .assign(to: &$isAuthenticated)
         
-        firebaseManager.$currentUser
+        cloudBaseManager.$currentUser
             .assign(to: &$currentUser)
         
         // 如果已登录，加载用户配置
@@ -58,18 +58,17 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let user = try await firebaseManager.signUp(email: email, password: password)
+            let user = try await cloudBaseManager.signUp(email: email, password: password)
             
             // 创建用户配置
             let profile = UserProfile(
-                userId: user.uid,
+                userId: user.uid ?? "",
                 displayName: displayName,
                 email: email
             )
             
-            try await firebaseManager.saveData(
+            _ = try await cloudBaseManager.saveData(
                 collection: "userProfiles",
-                documentId: user.uid,
                 data: profile
             )
             
@@ -97,7 +96,7 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let user = try await firebaseManager.signIn(email: email, password: password)
+            let user = try await cloudBaseManager.signIn(email: email, password: password)
             await loadUserProfile()
             successMessage = "登录成功！"
             print("✅ 用户登录成功: \(email)")
@@ -114,7 +113,7 @@ class AuthViewModel: ObservableObject {
     
     func signOut() {
         do {
-            try firebaseManager.signOut()
+            try cloudBaseManager.signOut()
             userProfile = nil
             successMessage = "已退出登录"
             print("✅ 用户退出登录")
@@ -136,7 +135,7 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            try await firebaseManager.resetPassword(email: email)
+            try await cloudBaseManager.resetPassword(email: email)
             successMessage = "密码重置邮件已发送，请查收邮箱"
             print("✅ 密码重置邮件已发送: \(email)")
         } catch {
@@ -153,27 +152,23 @@ class AuthViewModel: ObservableObject {
         guard let userId = currentUser?.uid else { return }
         
         do {
-            let profile = try await firebaseManager.fetchData(
+            let profiles: [UserProfile] = try await cloudBaseManager.fetchData(
                 collection: "userProfiles",
-                documentId: userId,
                 as: UserProfile.self
             )
-            self.userProfile = profile
+            self.userProfile = profiles.first
             print("✅ 用户配置加载成功")
         } catch {
             print("⚠️ 用户配置加载失败: \(error.localizedDescription)")
             // 如果配置不存在，创建默认配置
-            if let email = currentUser?.email {
-                let profile = UserProfile(userId: userId, email: email)
-                self.userProfile = profile
-                
-                Task {
-                    try? await firebaseManager.saveData(
-                        collection: "userProfiles",
-                        documentId: userId,
-                        data: profile
-                    )
-                }
+            let profile = UserProfile(userId: userId, email: "")
+            self.userProfile = profile
+            
+            Task {
+                try? await cloudBaseManager.saveData(
+                    collection: "userProfiles",
+                    data: profile
+                )
             }
         }
     }
@@ -190,9 +185,8 @@ class AuthViewModel: ObservableObject {
             var updatedProfile = profile
             updatedProfile.updatedAt = Date()
             
-            try await firebaseManager.saveData(
+            _ = try await cloudBaseManager.saveData(
                 collection: "userProfiles",
-                documentId: userId,
                 data: updatedProfile
             )
             
@@ -210,26 +204,36 @@ class AuthViewModel: ObservableObject {
     // MARK: - 错误处理
     
     private func handleAuthError(_ error: Error) -> String {
-        let nsError = error as NSError
+        let errorMessage = error.localizedDescription
         
-        switch nsError.code {
-        case AuthErrorCode.emailAlreadyInUse.rawValue:
-            return "该邮箱已被注册"
-        case AuthErrorCode.invalidEmail.rawValue:
-            return "邮箱格式不正确"
-        case AuthErrorCode.weakPassword.rawValue:
-            return "密码强度太弱"
-        case AuthErrorCode.wrongPassword.rawValue:
-            return "密码错误"
-        case AuthErrorCode.userNotFound.rawValue:
-            return "用户不存在"
-        case AuthErrorCode.networkError.rawValue:
-            return "网络连接失败"
-        case AuthErrorCode.tooManyRequests.rawValue:
-            return "请求过于频繁，请稍后再试"
-        default:
-            return error.localizedDescription
+        // 根据错误信息返回友好提示
+        if errorMessage.contains("email") || errorMessage.contains("邮箱") {
+            if errorMessage.contains("exist") || errorMessage.contains("已存在") {
+                return "该邮箱已被注册"
+            } else if errorMessage.contains("invalid") || errorMessage.contains("无效") {
+                return "邮箱格式不正确"
+            }
         }
+        
+        if errorMessage.contains("password") || errorMessage.contains("密码") {
+            if errorMessage.contains("weak") || errorMessage.contains("弱") {
+                return "密码强度太弱"
+            } else if errorMessage.contains("wrong") || errorMessage.contains("错误") {
+                return "密码错误"
+            }
+        }
+        
+        if errorMessage.contains("user") || errorMessage.contains("用户") {
+            if errorMessage.contains("not found") || errorMessage.contains("不存在") {
+                return "用户不存在"
+            }
+        }
+        
+        if errorMessage.contains("network") || errorMessage.contains("网络") {
+            return "网络连接失败"
+        }
+        
+        return errorMessage
     }
     
     // MARK: - 清除消息

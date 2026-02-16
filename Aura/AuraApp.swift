@@ -6,16 +6,15 @@
 //
 
 import SwiftUI
-import FirebaseCore
 
 @main
 struct AuraApp: App {
     @StateObject private var authViewModel = AuthViewModel()
     
     init() {
-        // 初始化 Firebase
-        FirebaseApp.configure()
-        print("🔥 Firebase 初始化完成")
+        // 腾讯云 CloudBase 会在 CloudBaseManager 初始化时自动配置
+        // 无需在这里手动初始化
+        print("☁️ 应用启动，腾讯云 CloudBase 已就绪")
     }
     
     var body: some Scene {
