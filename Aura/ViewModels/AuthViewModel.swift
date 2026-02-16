@@ -7,12 +7,10 @@
 
 import Foundation
 import SwiftUI
-import FirebaseAuth
 
 @MainActor
 class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
-    @Published var currentUser: User?
     @Published var userProfile: UserProfile?
     
     @Published var isLoading = false
@@ -24,14 +22,6 @@ class AuthViewModel: ObservableObject {
     init() {
         // 监听认证状态
         self.isAuthenticated = firebaseManager.isAuthenticated
-        self.currentUser = firebaseManager.currentUser
-        
-        // 订阅 Firebase 认证状态变化
-        firebaseManager.$isAuthenticated
-            .assign(to: &$isAuthenticated)
-        
-        firebaseManager.$currentUser
-            .assign(to: &$currentUser)
         
         // 如果已登录，加载用户配置
         if isAuthenticated {
@@ -39,6 +29,10 @@ class AuthViewModel: ObservableObject {
                 await loadUserProfile()
             }
         }
+    }
+    
+    var currentUser: FirebaseAuth.User? {
+        firebaseManager.currentUser
     }
     
     // MARK: - 注册
