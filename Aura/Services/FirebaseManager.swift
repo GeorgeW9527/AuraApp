@@ -34,7 +34,14 @@ class FirebaseManager: ObservableObject {
         self.firestore = Firestore.firestore()
         self.storage = Storage.storage()
         
-        // 监听认证状态变化
+        // 同步读取已保存的登录状态（Firebase 自动持久化）
+        if let existingUser = self.auth.currentUser {
+            self.currentUser = existingUser
+            self.isAuthenticated = true
+            print("🔐 已恢复登录状态: \(existingUser.email ?? "unknown")")
+        }
+        
+        // 监听后续认证状态变化
         self.auth.addStateDidChangeListener { [weak self] _, user in
             self?.currentUser = user
             self?.isAuthenticated = user != nil

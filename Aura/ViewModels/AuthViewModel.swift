@@ -20,16 +20,41 @@ class AuthViewModel: ObservableObject {
     @Published var successMessage: String?
     
     private let firebaseManager = FirebaseManager.shared
+    private var authStateHandle: AuthStateDidChangeListenerHandle?
     
     init() {
-        // 监听认证状态
+        // 同步读取已保存的登录状态
         self.isAuthenticated = firebaseManager.isAuthenticated
+        print("🔐 AuthViewModel init: isAuthenticated = \(isAuthenticated)")
         
         // 如果已登录，加载用户配置
         if isAuthenticated {
             Task {
                 await loadUserProfile()
             }
+        }
+        
+        // 监听 Firebase 认证状态异步变化
+        authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            Task { @MainActor in
+                guard let self = self else { return }
+                let authenticated = user != nil
+                if self.isAuthenticated != authenticated {
+                    self.isAuthenticated = authenticated
+                    print("🔐 AuthViewModel 状态更新: \(authenticated)")
+                    if authenticated {
+                        await self.loadUserProfile()
+                    } else {
+                        self.userProfile = nil
+                    }
+                }
+            }
+        }
+    }
+    
+    deinit {
+        if let handle = authStateHandle {
+            Auth.auth().removeStateDidChangeListener(handle)
         }
     }
     

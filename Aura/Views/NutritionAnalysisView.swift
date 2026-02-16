@@ -80,21 +80,19 @@ struct NutritionAnalysisView: View {
                                 .clipShape(Circle())
                                 .shadow(color: .orange.opacity(0.4), radius: 8, x: 0, y: 4)
                         }
+                        .confirmationDialog("记录美食", isPresented: $showingSourceSelection) {
+                            Button("拍照") {
+                                showingCamera = true
+                            }
+                            Button("从相册选择") {
+                                showingImagePicker = true
+                            }
+                            Button("取消", role: .cancel) {}
+                        }
                         .padding(.trailing, 24)
                         .padding(.bottom, 24)
                     }
                 }
-            }
-            .confirmationDialog("记录美食", isPresented: $showingSourceSelection) {
-                Button("拍照") {
-                    showingFoodRecord = true
-                    showingCamera = true
-                }
-                Button("从相册选择") {
-                    showingFoodRecord = true
-                    showingImagePicker = true
-                }
-                Button("取消", role: .cancel) {}
             }
             .sheet(isPresented: $showingCamera) {
                 CameraView(image: $viewModel.selectedImage, onImageCaptured: {
@@ -199,11 +197,11 @@ struct CalendarSectionView: View {
                                     .opacity(hasRecord ? 1 : 0)
                             }
                             .frame(width: 36, height: 40)
-                            .background(
-                                isSelected ?
-                                Circle().fill(Color.blue) as AnyView :
-                                Circle().fill(Color.clear) as AnyView
-                            )
+                            .background {
+                                if isSelected {
+                                    Circle().fill(Color.blue)
+                                }
+                            }
                         }
                         .buttonStyle(.plain)
                     } else {
@@ -229,8 +227,7 @@ struct CalendarSectionView: View {
     }
     
     private func generateDays() -> [Date?] {
-        guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth),
-              let monthFirstWeek = calendar.dateInterval(of: .weekOfMonth, for: monthInterval.start) else {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth) else {
             return []
         }
         
@@ -604,12 +601,14 @@ struct NutritionResultCard: View {
                     Text("总卡路里")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Text("\(result.calories)")
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(.orange)
-                    + Text(" kcal")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(result.calories)")
+                            .font(.system(size: 36, weight: .bold))
+                            .foregroundColor(.orange)
+                        Text("kcal")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 Spacer()
             }
