@@ -51,7 +51,7 @@ class NutritionViewModel: ObservableObject {
     @Published var errorMessage: String?
     
     // 云端同步
-    private let cloudBaseManager = CloudBaseManager.shared
+    private let firebaseManager = FirebaseManager.shared
     @Published var cloudRecords: [NutritionRecord] = []
     @Published var isSyncing = false
     
@@ -445,7 +445,7 @@ class NutritionViewModel: ObservableObject {
     
     /// 保存分析结果到云端
     func saveToCloud(result: NutritionResult, image: UIImage) async {
-        guard let userId = cloudBaseManager.currentUser?.uid else {
+        guard let userId = firebaseManager.currentUser?.uid else {
             print("⚠️ 用户未登录，跳过云端保存")
             return
         }
@@ -453,10 +453,10 @@ class NutritionViewModel: ObservableObject {
         isSyncing = true
         
         do {
-            // 1. 上传图片到云存储
+            // 1. 上传图片到 Storage
             print("📤 开始上传图片到云端...")
             let imagePath = "nutrition/\(UUID().uuidString).jpg"
-            let imageURL = try await cloudBaseManager.uploadImage(image, path: imagePath)
+            let imageURL = try await firebaseManager.uploadImage(image, path: imagePath)
             
             // 2. 创建云端记录
             let record = NutritionRecord.from(
@@ -465,10 +465,11 @@ class NutritionViewModel: ObservableObject {
                 userId: userId
             )
             
-            // 3. 保存到云数据库
-            print("💾 保存营养记录到云数据库...")
-            _ = try await cloudBaseManager.saveData(
+            // 3. 保存到 Firestore
+            print("💾 保存营养记录到 Firestore...")
+            try await firebaseManager.saveData(
                 collection: "nutritionRecords",
+                documentId: record.id ?? UUID().uuidString,
                 data: record
             )
             
@@ -487,7 +488,7 @@ class NutritionViewModel: ObservableObject {
     
     /// 从云端加载记录
     func loadCloudRecords() async {
-        guard cloudBaseManager.currentUser != nil else {
+        guard firebaseManager.currentUser != nil else {
             print("⚠️ 用户未登录，跳过云端加载")
             return
         }
@@ -496,7 +497,7 @@ class NutritionViewModel: ObservableObject {
         
         do {
             print("📥 从云端加载营养记录...")
-            let records = try await cloudBaseManager.fetchData(
+            let records = try await firebaseManager.fetchCollection(
                 collection: "nutritionRecords",
                 as: NutritionRecord.self
             )
@@ -520,16 +521,17 @@ class NutritionViewModel: ObservableObject {
         isSyncing = true
         
         do {
-            // 1. 删除云数据库记录
-            try await cloudBaseManager.deleteData(
+            // 1. 删除 Firestore 记录
+            try await firebaseManager.deleteData(
                 collection: "nutritionRecords",
                 documentId: recordId
             )
             
-            // 2. 删除云存储图片（如果有 fileId）
+            // 2. 删除 Storage 图片
             if let imageURL = record.imageURL,
-               let fileId = extractFileId(from: imageURL) {
-                try? await cloudBaseManager.deleteImage(fileId: fileId)
+               let url = URL(string: imageURL),
+               let path = url.pathComponents.dropFirst(4).joined(separator: "/") as String? {
+                try? await firebaseManager.deleteImage(path: path)
             }
             
             // 3. 刷新列表
@@ -543,12 +545,5 @@ class NutritionViewModel: ObservableObject {
         }
         
         isSyncing = false
-    }
-    
-    /// 从 URL 中提取文件 ID
-    private func extractFileId(from url: String) -> String? {
-        // 腾讯云存储 URL 格式通常包含 fileId
-        // 这里需要根据实际返回的 URL 格式来解析
-        return url.components(separatedBy: "/").last
     }
 }

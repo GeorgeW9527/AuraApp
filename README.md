@@ -41,7 +41,7 @@
 
 - **SwiftUI框架**：现代化的UI框架，流畅的用户体验
 - **MVVM架构**：清晰的代码结构，易于维护
-- **腾讯云开发 CloudBase**：云端用户认证和数据同步（国内访问快）
+- **Firebase集成**：云端用户认证和数据同步
 - **Charts框架**：美观的数据可视化
 - **相机集成**：原生相机和相册访问
 - **响应式设计**：适配不同尺寸的iPhone
@@ -56,12 +56,11 @@
 ### 安装步骤
 
 1. 克隆或下载项目到本地
-2. 配置腾讯云开发（详见 [CLOUDBASE_SETUP.md](CLOUDBASE_SETUP.md)）
+2. 配置 Firebase（详见 [FIREBASE_SETUP.md](FIREBASE_SETUP.md)）
 3. 使用Xcode打开 `Aura.xcodeproj`
-4. 在 Xcode 中添加 CloudBase SDK（File → Add Package Dependencies）
-5. 配置环境 ID（在 `CloudBaseManager.swift` 中）
-6. 选择目标设备或模拟器
-7. 点击运行按钮 (⌘R) 编译并运行
+4. 在 Xcode 中添加 Firebase SDK（File → Add Package Dependencies）
+5. 选择目标设备或模拟器
+6. 点击运行按钮 (⌘R) 编译并运行
 
 ### 权限配置
 
@@ -125,6 +124,7 @@ Aura/
 ├── AuraApp.swift                  # 应用入口
 ├── ContentView.swift              # 主界面（底部导航）
 ├── Config.swift                   # 配置文件（API密钥等）
+├── GoogleService-Info.plist       # Firebase 配置文件
 ├── Views/                         # 视图文件
 │   ├── AuthView.swift             # 登录/注册界面
 │   ├── DailyDashboardView.swift
@@ -138,7 +138,7 @@ Aura/
 ├── Models/                        # 数据模型
 │   └── CloudModels.swift          # 云端数据模型
 ├── Services/                      # 服务层
-│   └── CloudBaseManager.swift     # 腾讯云管理器
+│   └── FirebaseManager.swift      # Firebase 管理器
 └── Helpers/                       # 辅助工具
     ├── CameraView.swift
     └── ImagePicker.swift
@@ -154,21 +154,13 @@ Aura/
 
 ### 数据同步
 - ✅ 营养分析记录自动保存到云端
-- ✅ 食物照片上传到腾讯云存储
+- ✅ 食物照片上传到 Firebase Storage
 - ✅ 从云端加载历史记录
 - ✅ 跨设备数据同步
 - ✅ 用户配置云端存储
 
 ### 配置说明
-详细的腾讯云配置步骤请查看：
-- [CLOUDBASE_SETUP.md](CLOUDBASE_SETUP.md) - 详细配置指南
-- [CLOUDBASE_CHECKLIST.md](CLOUDBASE_CHECKLIST.md) - 快速配置清单
-
-### 为什么选择腾讯云？
-- ✅ **国内访问速度快** - 无需翻墙，访问稳定
-- ✅ **中文文档完善** - 易于理解和使用
-- ✅ **免费额度慷慨** - 个人应用完全够用
-- ✅ **技术支持本地化** - 更好的服务体验
+详细的 Firebase 配置步骤请查看 [FIREBASE_SETUP.md](FIREBASE_SETUP.md)
 
 ## 未来规划
 
