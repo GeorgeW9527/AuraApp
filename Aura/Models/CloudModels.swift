@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import FirebaseFirestore
 
 // MARK: - 营养记录（云端版本）
@@ -48,7 +49,7 @@ struct NutritionRecord: Codable, Identifiable {
     static func from(result: NutritionResult, imageURL: String?, userId: String) -> NutritionRecord {
         return NutritionRecord(
             foodName: result.foodName,
-            calories: result.calories,
+            calories: Double(result.calories),
             protein: result.protein,
             carbs: result.carbs,
             fat: result.fat,
