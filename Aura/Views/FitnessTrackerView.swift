@@ -14,13 +14,9 @@ struct FitnessTrackerView: View {
     @State private var duration: Double = 30
     @State private var isTracking = false
     @State private var isLoadingCloud = false
-    @State private var workoutHistory: [WorkoutSession] = [
-        WorkoutSession(type: .running, duration: 45, calories: 380, date: Date().addingTimeInterval(-86400)),
-        WorkoutSession(type: .cycling, duration: 60, calories: 420, date: Date().addingTimeInterval(-172800)),
-        WorkoutSession(type: .swimming, duration: 30, calories: 250, date: Date().addingTimeInterval(-259200)),
-        WorkoutSession(type: .yoga, duration: 40, calories: 150, date: Date().addingTimeInterval(-345600))
-    ]
+    @State private var workoutHistory: [WorkoutSession] = []
     private let firebaseManager = FirebaseManager.shared
+    private let localStorage = LocalStorageManager.shared
 
     private var weeklyWorkouts: [WorkoutSession] {
         workoutHistory.filter { Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .weekOfYear) }
@@ -187,6 +183,11 @@ struct FitnessTrackerView: View {
                 date: Date()
             )
             workoutHistory.insert(newWorkout, at: 0)
+            
+            // 立即保存到本地
+            saveWorkoutsToLocal()
+            
+            // 后台同步到 Firebase
             Task {
                 await saveWorkoutToCloud(newWorkout)
             }
@@ -234,6 +235,22 @@ struct FitnessTrackerView: View {
     }
 
     private func loadCloudWorkoutHistory() async {
+        // 1. 先从本地加载（保证有数据显示）
+        let localRecords = localStorage.loadWorkoutRecords()
+        if !localRecords.isEmpty && workoutHistory.isEmpty {
+            workoutHistory = localRecords.map { record in
+                WorkoutSession(
+                    id: record.id,
+                    type: WorkoutType(rawValue: record.type) ?? .walking,
+                    duration: record.duration,
+                    calories: record.calories,
+                    date: record.date
+                )
+            }.sorted(by: { $0.date > $1.date })
+            print("✅ 从本地恢复了 \(workoutHistory.count) 条运动记录")
+        }
+        
+        // 2. 后台尝试从 Firebase 同步
         guard firebaseManager.currentUser != nil else { return }
         isLoadingCloud = true
         defer { isLoadingCloud = false }
@@ -243,20 +260,37 @@ struct FitnessTrackerView: View {
                 collection: "fitnessRecords",
                 as: FitnessRecord.self
             )
-            let mapped = records.map { record in
-                WorkoutSession(
-                    id: record.id ?? UUID().uuidString,
-                    type: WorkoutType(rawValue: record.activityType) ?? .walking,
-                    duration: Int(record.duration / 60),
-                    calories: Int(record.calories.rounded()),
-                    date: record.timestamp
-                )
+            if !records.isEmpty {
+                let mapped = records.map { record in
+                    WorkoutSession(
+                        id: record.id ?? UUID().uuidString,
+                        type: WorkoutType(rawValue: record.activityType) ?? .walking,
+                        duration: Int(record.duration / 60),
+                        calories: Int(record.calories.rounded()),
+                        date: record.timestamp
+                    )
+                }
+                self.workoutHistory = mapped.sorted(by: { $0.date > $1.date })
+                // 同步更新本地存储
+                saveWorkoutsToLocal()
+                print("✅ 从 Firebase 同步了 \(mapped.count) 条运动记录")
             }
-            self.workoutHistory = mapped.sorted(by: { $0.date > $1.date })
-            print("✅ 已加载 \(mapped.count) 条运动记录")
         } catch {
-            print("❌ 加载云端运动记录失败: \(error.localizedDescription)")
+            print("⚠️ Firebase 运动记录同步失败（保留本地数据）: \(error.localizedDescription)")
         }
+    }
+    
+    private func saveWorkoutsToLocal() {
+        let localRecords = workoutHistory.map { workout in
+            LocalStorageManager.LocalWorkoutRecord(
+                id: workout.id,
+                type: workout.type.rawValue,
+                duration: workout.duration,
+                calories: workout.calories,
+                date: workout.date
+            )
+        }
+        localStorage.saveWorkoutRecords(localRecords)
     }
 }
 

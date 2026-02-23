@@ -20,6 +20,7 @@ class AuthViewModel: ObservableObject {
     @Published var successMessage: String?
     
     private let firebaseManager = FirebaseManager.shared
+    private let localStorage = LocalStorageManager.shared
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     
     init() {
@@ -27,8 +28,14 @@ class AuthViewModel: ObservableObject {
         self.isAuthenticated = firebaseManager.isAuthenticated
         print("🔐 AuthViewModel init: isAuthenticated = \(isAuthenticated)")
         
-        // 如果已登录，加载用户配置
+        // 如果已登录，立即从本地加载用户资料（秒级恢复）
         if isAuthenticated {
+            if let localProfile = localStorage.loadUserProfile() {
+                self.userProfile = localProfile
+                print("✅ 从本地恢复用户资料: \(localProfile.displayName ?? "无昵称")")
+            }
+            
+            // 后台尝试从 Firebase 同步最新数据
             Task {
                 await loadUserProfile()
             }
@@ -43,6 +50,10 @@ class AuthViewModel: ObservableObject {
                     self.isAuthenticated = authenticated
                     print("🔐 AuthViewModel 状态更新: \(authenticated)")
                     if authenticated {
+                        // 先从本地恢复
+                        if self.userProfile == nil, let localProfile = self.localStorage.loadUserProfile() {
+                            self.userProfile = localProfile
+                        }
                         await self.loadUserProfile()
                     } else {
                         self.userProfile = nil
@@ -88,6 +99,10 @@ class AuthViewModel: ObservableObject {
                 email: email
             )
             
+            // 立即保存到本地
+            localStorage.saveUserProfile(profile)
+            
+            // 后台同步到 Firebase
             try await firebaseManager.saveData(
                 collection: "userProfiles",
                 documentId: user.uid,
@@ -119,7 +134,7 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let user = try await firebaseManager.signIn(email: email, password: password)
+            let _ = try await firebaseManager.signIn(email: email, password: password)
             await loadUserProfile()
             self.isAuthenticated = true
             successMessage = "登录成功！"
@@ -140,6 +155,8 @@ class AuthViewModel: ObservableObject {
             try firebaseManager.signOut()
             self.isAuthenticated = false
             userProfile = nil
+            // 清除本地缓存
+            localStorage.clearAll()
             successMessage = "已退出登录"
             print("✅ 用户退出登录")
         } catch {
@@ -171,11 +188,18 @@ class AuthViewModel: ObservableObject {
         isLoading = false
     }
     
-    // MARK: - 加载用户配置
+    // MARK: - 加载用户配置（本地优先，Firebase 后台同步）
     
     func loadUserProfile() async {
         guard let userId = currentUser?.uid else { return }
         
+        // 1. 先从本地加载（保证有数据显示）
+        if self.userProfile == nil, let localProfile = localStorage.loadUserProfile() {
+            self.userProfile = localProfile
+            print("✅ 从本地加载用户资料")
+        }
+        
+        // 2. 尝试从 Firebase 获取最新数据
         do {
             let profile = try await firebaseManager.fetchData(
                 collection: "userProfiles",
@@ -183,19 +207,19 @@ class AuthViewModel: ObservableObject {
                 as: UserProfile.self
             )
             self.userProfile = profile
-            print("✅ 用户配置加载成功: \(profile.displayName ?? "无昵称")")
-        } catch let error as NSError {
-            print("⚠️ 用户配置加载失败: \(error.localizedDescription)")
+            // 同步更新本地缓存
+            localStorage.saveUserProfile(profile)
+            print("✅ 从 Firebase 同步用户配置成功: \(profile.displayName ?? "无昵称")")
+        } catch {
+            print("⚠️ Firebase 加载用户配置失败: \(error.localizedDescription)")
             
-            // 只有当错误明确是"数据不存在"（首次注册）时才创建默认配置
-            // 网络超时/连接失败时不覆盖，保留本地已有数据
-            let isDataNotFound = error.localizedDescription.contains("数据不存在")
-            
-            if isDataNotFound, self.userProfile == nil {
+            // 本地也没有数据 → 首次使用，创建默认配置
+            if self.userProfile == nil {
                 print("📝 首次使用，创建默认用户配置")
                 if let email = currentUser?.email {
                     let profile = UserProfile(userId: userId, email: email)
                     self.userProfile = profile
+                    localStorage.saveUserProfile(profile)
                     
                     Task {
                         try? await firebaseManager.saveData(
@@ -205,13 +229,12 @@ class AuthViewModel: ObservableObject {
                         )
                     }
                 }
-            } else {
-                print("⚠️ 网络问题导致加载失败，保留现有数据不覆盖")
             }
+            // 本地有数据 → 保留现有数据，不覆盖
         }
     }
     
-    // MARK: - 更新用户配置
+    // MARK: - 更新用户配置（双写：本地 + Firebase）
     
     func updateUserProfile(_ profile: UserProfile) async {
         guard let userId = currentUser?.uid else { return }
@@ -219,22 +242,27 @@ class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        var updatedProfile = profile
+        updatedProfile.updatedAt = Date()
+        
+        // 1. 立即保存到本地（保证持久化）
+        self.userProfile = updatedProfile
+        localStorage.saveUserProfile(updatedProfile)
+        print("💾 用户资料已保存到本地")
+        
+        // 2. 后台同步到 Firebase
         do {
-            var updatedProfile = profile
-            updatedProfile.updatedAt = Date()
-            
             try await firebaseManager.saveData(
                 collection: "userProfiles",
                 documentId: userId,
                 data: updatedProfile
             )
-            
-            self.userProfile = updatedProfile
             successMessage = "配置更新成功"
-            print("✅ 用户配置更新成功")
+            print("✅ 用户配置同步到 Firebase 成功")
         } catch {
-            errorMessage = "配置更新失败: \(error.localizedDescription)"
-            print("❌ 配置更新失败: \(error.localizedDescription)")
+            // Firebase 失败不影响本地保存
+            print("⚠️ Firebase 同步失败（本地已保存）: \(error.localizedDescription)")
+            successMessage = "配置已保存"
         }
         
         isLoading = false

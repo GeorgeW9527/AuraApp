@@ -62,10 +62,16 @@ class NutritionViewModel: ObservableObject {
     @Published var history: [NutritionHistoryItem] = []
     @Published var errorMessage: String?
     
-    // 云端同步
+    // 本地存储 + 云端同步
     private let firebaseManager = FirebaseManager.shared
+    private let localStorage = LocalStorageManager.shared
     @Published var cloudRecords: [NutritionRecord] = []
     @Published var isSyncing = false
+    
+    init() {
+        // 启动时立即从本地恢复历史记录
+        loadFromLocalStorage()
+    }
     
     func analyzeImage() {
         guard let selectedImage = selectedImage else { return }
@@ -410,7 +416,13 @@ class NutritionViewModel: ObservableObject {
     func saveToHistory() {
         guard let image = selectedImage, let result = analysisResult else { return }
         
+        let itemId = UUID()
+        
+        // 保存图片到本地文件系统
+        let imageFileName = localStorage.saveNutritionImage(image, id: itemId.uuidString)
+        
         let historyItem = NutritionHistoryItem(
+            id: itemId,
             image: image,
             result: result,
             date: Date(),
@@ -424,7 +436,10 @@ class NutritionViewModel: ObservableObject {
             history = Array(history.prefix(100))
         }
 
-        // 同步保存到 Firebase（图片 + 营养分析结果）
+        // 立即保存到本地存储（保证持久化）
+        saveToLocalStorage()
+
+        // 后台同步到 Firebase
         Task {
             await saveToCloud(result: result, image: image)
         }
@@ -439,6 +454,63 @@ class NutritionViewModel: ObservableObject {
         selectedImage = nil
         analysisResult = nil
         errorMessage = nil
+    }
+    
+    // MARK: - 本地存储
+    
+    /// 保存历史记录到本地（UserDefaults + 文件系统）
+    private func saveToLocalStorage() {
+        let localRecords: [LocalStorageManager.LocalNutritionRecord] = history.map { item in
+            LocalStorageManager.LocalNutritionRecord(
+                id: item.id.uuidString,
+                foodName: item.result.foodName,
+                calories: item.result.calories,
+                protein: item.result.protein,
+                carbs: item.result.carbs,
+                fat: item.result.fat,
+                description: item.result.description,
+                imageFileName: "\(item.id.uuidString).jpg",
+                imageURL: item.imageURL,
+                timestamp: item.date
+            )
+        }
+        localStorage.saveNutritionRecords(localRecords)
+    }
+    
+    /// 从本地存储恢复历史记录
+    private func loadFromLocalStorage() {
+        let localRecords = localStorage.loadNutritionRecords()
+        guard !localRecords.isEmpty else { return }
+        
+        self.history = localRecords.map { record in
+            let result = NutritionResult(
+                foodName: record.foodName,
+                calories: record.calories,
+                protein: record.protein,
+                carbs: record.carbs,
+                fat: record.fat,
+                description: record.description
+            )
+            
+            // 尝试从本地文件加载图片
+            let localImage: UIImage? = {
+                if let fileName = record.imageFileName {
+                    return localStorage.loadNutritionImage(fileName: fileName)
+                }
+                return nil
+            }()
+            
+            return NutritionHistoryItem(
+                id: UUID(uuidString: record.id) ?? UUID(),
+                image: localImage,
+                imageURL: record.imageURL,
+                result: result,
+                date: record.timestamp,
+                cloudRecordId: nil
+            )
+        }.sorted { $0.date > $1.date }
+        
+        print("✅ 从本地恢复了 \(history.count) 条营养记录")
     }
     
     // MARK: - 日历相关
@@ -564,37 +636,46 @@ class NutritionViewModel: ObservableObject {
         isSyncing = false
     }
 
-    /// 从云端记录重建本地历史（用于重启后恢复历史）
+    /// 从云端同步记录（后台增量合并，不覆盖本地数据）
     func syncHistoryFromCloud() async {
         await loadCloudRecords()
 
-        // 只有当云端有数据时才更新 history，否则保留现有
+        // 云端没数据，保留本地现有
         guard !cloudRecords.isEmpty else {
-            print("ℹ️ 云端无记录，保留本地现有历史")
+            print("ℹ️ 云端无记录，保留本地现有历史 (\(history.count) 条)")
             return
         }
 
-        let mappedItems: [NutritionHistoryItem] = cloudRecords.map { record in
-            let result = NutritionResult(
-                foodName: record.foodName,
-                calories: Int(record.calories.rounded()),
-                protein: record.protein,
-                carbs: record.carbs,
-                fat: record.fat,
-                description: record.description
-            )
-
-            return NutritionHistoryItem(
-                image: nil,
-                imageURL: record.imageURL,
-                result: result,
-                date: record.timestamp,
-                cloudRecordId: record.id
-            )
+        // 合并策略：云端有而本地没有的记录，追加进来
+        let existingDates = Set(history.map { dayFormatter.string(from: $0.date) + $0.result.foodName })
+        
+        var merged = history
+        for record in cloudRecords {
+            let key = dayFormatter.string(from: record.timestamp) + record.foodName
+            if !existingDates.contains(key) {
+                let result = NutritionResult(
+                    foodName: record.foodName,
+                    calories: Int(record.calories.rounded()),
+                    protein: record.protein,
+                    carbs: record.carbs,
+                    fat: record.fat,
+                    description: record.description
+                )
+                merged.append(NutritionHistoryItem(
+                    image: nil,
+                    imageURL: record.imageURL,
+                    result: result,
+                    date: record.timestamp,
+                    cloudRecordId: record.id
+                ))
+            }
         }
-
-        self.history = mappedItems.sorted { $0.date > $1.date }
-        print("✅ 本地历史已从云端恢复: \(history.count) 条")
+        
+        self.history = merged.sorted { $0.date > $1.date }
+        
+        // 合并后更新本地存储
+        saveToLocalStorage()
+        print("✅ 云端同步完成，当前共 \(history.count) 条记录")
     }
     
     /// 删除云端记录
