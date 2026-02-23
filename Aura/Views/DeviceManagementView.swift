@@ -232,9 +232,12 @@ struct DeviceManagementView: View {
                 documentId: device.id,
                 data: info
             )
-            print("✅ 设备状态已同步: \(device.name)")
+            print("✅ 设备状态已同步到云端（服务器确认）: \(device.name)")
         } catch {
-            print("❌ 设备状态同步失败: \(error.localizedDescription)")
+            print("❌ 设备状态同步失败: \(error)")
+            if let nsError = error as NSError?, nsError.code == 7 {
+                print("🔒 PERMISSION_DENIED - 请检查 Firestore 安全规则！")
+            }
         }
     }
 

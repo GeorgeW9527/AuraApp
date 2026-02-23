@@ -582,21 +582,28 @@ class NutritionViewModel: ObservableObject {
                 userId: userId
             )
             
-            // 3. 保存到 Firestore
-            print("💾 保存营养记录到 Firestore...")
+            // 3. 保存到 Firestore（等待服务器确认）
+            print("💾 保存营养记录到 Firestore（等待服务器确认）...")
             try await firebaseManager.saveData(
                 collection: "nutritionRecords",
                 documentId: record.id ?? UUID().uuidString,
                 data: record
             )
             
-            print("✅ 云端保存成功")
+            print("✅ 云端保存成功（服务器已确认）")
             
             // 4. 刷新云端记录列表
             await loadCloudRecords()
             
         } catch {
-            print("❌ 云端保存失败: \(error.localizedDescription)")
+            print("❌ 云端保存失败: \(error)")
+            print("❌ 错误详情: \(error.localizedDescription)")
+            if let nsError = error as NSError? {
+                print("❌ 错误码: \(nsError.code), 域: \(nsError.domain)")
+                if nsError.code == 7 {
+                    print("🔒 错误码7 = PERMISSION_DENIED，请检查 Firestore 安全规则！")
+                }
+            }
             errorMessage = "云端保存失败: \(error.localizedDescription)"
         }
         

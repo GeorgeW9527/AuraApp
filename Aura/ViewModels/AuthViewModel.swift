@@ -102,12 +102,18 @@ class AuthViewModel: ObservableObject {
             // 立即保存到本地
             localStorage.saveUserProfile(profile)
             
-            // 后台同步到 Firebase
-            try await firebaseManager.saveData(
-                collection: "userProfiles",
-                documentId: user.uid,
-                data: profile
-            )
+            // 同步到 Firebase（等待服务器确认）
+            do {
+                try await firebaseManager.saveData(
+                    collection: "userProfiles",
+                    documentId: user.uid,
+                    data: profile
+                )
+                print("✅ 用户配置已同步到 Firebase 服务器")
+            } catch {
+                print("⚠️ 注册成功但 Firebase 配置同步失败: \(error)")
+                print("⚠️ 本地已保存，下次启动会重试")
+            }
             
             self.userProfile = profile
             self.isAuthenticated = true
@@ -250,19 +256,24 @@ class AuthViewModel: ObservableObject {
         localStorage.saveUserProfile(updatedProfile)
         print("💾 用户资料已保存到本地")
         
-        // 2. 后台同步到 Firebase
+        // 2. 后台同步到 Firebase（等待服务器确认）
         do {
             try await firebaseManager.saveData(
                 collection: "userProfiles",
                 documentId: userId,
                 data: updatedProfile
             )
-            successMessage = "配置更新成功"
-            print("✅ 用户配置同步到 Firebase 成功")
+            successMessage = "配置已同步到云端 ☁️"
+            print("✅ 用户配置同步到 Firebase 服务器确认成功")
         } catch {
-            // Firebase 失败不影响本地保存
-            print("⚠️ Firebase 同步失败（本地已保存）: \(error.localizedDescription)")
-            successMessage = "配置已保存"
+            // Firebase 失败不影响本地保存，但要打印详细错误
+            print("❌ Firebase 同步失败（本地已保存）: \(error)")
+            print("❌ 错误详情: \(error.localizedDescription)")
+            if let nsError = error as NSError? {
+                print("❌ 错误码: \(nsError.code), 域: \(nsError.domain)")
+                print("❌ userInfo: \(nsError.userInfo)")
+            }
+            successMessage = "已保存到本地（云端同步失败）"
         }
         
         isLoading = false

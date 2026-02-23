@@ -82,17 +82,22 @@ class FirebaseManager: ObservableObject {
     
     // MARK: - Firestore 数据操作
     
-    /// 保存数据到 Firestore
+    /// 保存数据到 Firestore（等待服务器确认）
     func saveData<T: Encodable>(collection: String, documentId: String, data: T) async throws {
         guard let userId = currentUser?.uid else {
             throw NSError(domain: "FirebaseError", code: -1,
                          userInfo: [NSLocalizedDescriptionKey: "用户未登录"])
         }
         
-        print("💾 保存数据: \(collection)/\(userId)/\(documentId)")
+        print("💾 保存数据: \(collection)/\(userId)/items/\(documentId)")
         let docRef = firestore.collection(collection).document(userId).collection("items").document(documentId)
-        try docRef.setData(from: data)
-        print("✅ 数据保存成功")
+        
+        // 用 Firestore.Encoder 把 Encodable 转为字典，再调用 async setData 等待服务器确认
+        let encoded = try Firestore.Encoder().encode(data)
+        print("📦 编码成功，字段数: \(encoded.count)，字段: \(encoded.keys.joined(separator: ", "))")
+        
+        try await docRef.setData(encoded)
+        print("✅ 数据已确认写入服务器: \(collection)/\(userId)/items/\(documentId)")
     }
     
     /// 从 Firestore 获取数据（优先本地缓存，后台同步服务器）

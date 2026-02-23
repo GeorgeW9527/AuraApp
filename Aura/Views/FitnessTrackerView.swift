@@ -228,9 +228,12 @@ struct FitnessTrackerView: View {
                 documentId: workout.id,
                 data: record
             )
-            print("✅ 运动记录已同步到云端: \(workout.id)")
+            print("✅ 运动记录已同步到云端（服务器确认）: \(workout.id)")
         } catch {
-            print("❌ 运动记录同步失败: \(error.localizedDescription)")
+            print("❌ 运动记录同步失败: \(error)")
+            if let nsError = error as NSError?, nsError.code == 7 {
+                print("🔒 PERMISSION_DENIED - 请检查 Firestore 安全规则！")
+            }
         }
     }
 
