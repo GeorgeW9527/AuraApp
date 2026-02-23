@@ -13,6 +13,11 @@ import FirebaseCore
 struct AuraApp: App {
     @StateObject private var authViewModel = AuthViewModel()
     
+    init() {
+        // 启动时打印本地存储状态（调试用）
+        LocalStorageManager.shared.debugPrintStatus()
+    }
+    
     var body: some Scene {
         WindowGroup {
             if authViewModel.isAuthenticated {
