@@ -109,6 +109,9 @@ struct NutritionAnalysisView: View {
                     FoodRecordView(viewModel: viewModel, isPresented: $showingFoodRecord)
                 }
             }
+            .task {
+                await viewModel.syncHistoryFromCloud()
+            }
         }
     }
 }
@@ -397,80 +400,127 @@ struct FoodRecordView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // 已选图片
-                    if let image = viewModel.selectedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 300)
-                            .cornerRadius(16)
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color.blue.opacity(0.16),
+                        Color.purple.opacity(0.14),
+                        Color.orange.opacity(0.10)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 18) {
+                        if let image = viewModel.selectedImage {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Label("本次拍摄", systemImage: "camera.viewfinder")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Text(Date(), style: .time)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(height: 300)
+                                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                    .overlay(
+                                        LinearGradient(
+                                            colors: [.clear, .black.opacity(0.22)],
+                                            startPoint: .center,
+                                            endPoint: .bottom
+                                        )
+                                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                    )
+                            }
+                            .padding(14)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 10)
                             .padding(.horizontal)
-                    }
-                    
-                    // 分析中
-                    if viewModel.isAnalyzing {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                            Text("AI正在分析中...")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            .padding(.top, 8)
                         }
-                        .padding(.vertical, 30)
-                    }
-                    
-                    // 错误信息
-                    if let errorMessage = viewModel.errorMessage {
-                        VStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.largeTitle)
-                                .foregroundColor(.red)
-                            
-                            Text("分析失败")
-                                .font(.headline)
-                            
-                            Text(errorMessage)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
+
+                        if viewModel.isAnalyzing {
+                            AIAnalyzingView()
                                 .padding(.horizontal)
-                            
-                            Button("重试") {
-                                viewModel.analyzeImage()
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.blue)
                         }
-                        .padding()
-                    }
-                    
-                    // 分析结果
-                    if let result = viewModel.analysisResult {
-                        NutritionResultCard(result: result)
-                            .padding(.horizontal)
-                        
-                        Button(action: {
-                            viewModel.saveToHistory()
-                            // 关闭页面
-                            isPresented = false
-                        }) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("保存记录")
-                                    .fontWeight(.semibold)
+
+                        if let errorMessage = viewModel.errorMessage {
+                            VStack(spacing: 12) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.red)
+                                Text("分析失败")
+                                    .font(.headline)
+                                Text(errorMessage)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                Button("重试分析") {
+                                    viewModel.analyzeImage()
+                                }
+                                .buttonStyle(.borderedProminent)
                             }
-                            .foregroundColor(.white)
+                            .padding(18)
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.green)
-                            .cornerRadius(12)
+                            .background(Color(UIColor.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
+
+                        if let result = viewModel.analysisResult {
+                            NutritionResultCard(result: result)
+                                .padding(.horizontal)
+
+                            Button(action: {
+                                viewModel.saveToHistory()
+                                isPresented = false
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                    Text("保存到我的饮食记录")
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.green, Color.mint],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .shadow(color: .green.opacity(0.3), radius: 10, x: 0, y: 6)
+                            }
+                            .padding(.horizontal)
+                        } else if !viewModel.isAnalyzing && viewModel.errorMessage == nil {
+                            HStack(spacing: 10) {
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(.blue)
+                                Text("已上传图片，AI 即将返回营养分析结果")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(UIColor.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .padding(.horizontal)
+                        }
                     }
+                    .padding(.bottom, 24)
                 }
-                .padding(.top)
             }
             .navigationTitle("美食记录")
             .navigationBarTitleDisplayMode(.inline)
@@ -493,6 +543,90 @@ struct FoodRecordView: View {
     }
 }
 
+struct AIAnalyzingView: View {
+    @State private var spin = false
+    @State private var breathe = false
+    @State private var stageIndex = 0
+
+    private let stages = [
+        "上传图片到云端",
+        "识别食物种类",
+        "估算卡路里与营养素",
+        "生成健康建议"
+    ]
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .stroke(Color.blue.opacity(0.15), lineWidth: 10)
+                    .frame(width: 88, height: 88)
+
+                Circle()
+                    .trim(from: 0.15, to: 0.9)
+                    .stroke(
+                        AngularGradient(
+                            colors: [.blue, .purple, .pink, .blue],
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                    )
+                    .frame(width: 88, height: 88)
+                    .rotationEffect(.degrees(spin ? 360 : 0))
+                    .animation(.linear(duration: 1.2).repeatForever(autoreverses: false), value: spin)
+
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.blue)
+                    .scaleEffect(breathe ? 1.05 : 0.92)
+                    .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: breathe)
+            }
+
+            VStack(spacing: 6) {
+                Text("AI 营养引擎分析中")
+                    .font(.headline)
+                Text(stages[stageIndex])
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(Array(stages.enumerated()), id: \.offset) { index, _ in
+                    Capsule()
+                        .fill(index <= stageIndex ? Color.blue : Color.gray.opacity(0.25))
+                        .frame(width: index == stageIndex ? 28 : 16, height: 6)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.9), value: stageIndex)
+                }
+            }
+        }
+        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+        )
+        .onAppear {
+            spin = true
+            breathe = true
+
+            Timer.scheduledTimer(withTimeInterval: 1.4, repeats: true) { timer in
+                stageIndex += 1
+                if stageIndex >= stages.count {
+                    stageIndex = 0
+                }
+                if !spin {
+                    timer.invalidate()
+                }
+            }
+        }
+        .onDisappear {
+            spin = false
+            breathe = false
+        }
+    }
+}
+
 // MARK: - 记录详情页
 
 struct RecordDetailView: View {
@@ -502,11 +636,33 @@ struct RecordDetailView: View {
         ScrollView {
             VStack(spacing: 20) {
                 // 图片
-                Image(uiImage: item.image)
-                    .resizable()
-                    .scaledToFit()
-                    .cornerRadius(16)
+                if let image = item.image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+                } else if let imageURL = item.imageURL, let url = URL(string: imageURL) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFit()
+                                .cornerRadius(16)
+                        case .failure(_):
+                            placeholderImage
+                        case .empty:
+                            ProgressView()
+                        @unknown default:
+                            placeholderImage
+                        }
+                    }
                     .padding(.horizontal)
+                } else {
+                    placeholderImage
+                        .padding(.horizontal)
+                }
                 
                 // 时间
                 HStack {
@@ -530,6 +686,17 @@ struct RecordDetailView: View {
         .navigationTitle(item.result.foodName)
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    private var placeholderImage: some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(Color(UIColor.secondarySystemBackground))
+            .frame(height: 220)
+            .overlay(
+                Image(systemName: "photo")
+                    .font(.largeTitle)
+                    .foregroundColor(.secondary)
+            )
+    }
 }
 
 // MARK: - 历史记录行
@@ -539,12 +706,45 @@ struct HistoryItemRow: View {
     
     var body: some View {
         HStack(spacing: 14) {
-            Image(uiImage: item.image)
-                .resizable()
-                .scaledToFill()
+            if let image = item.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 56, height: 56)
+                    .cornerRadius(12)
+                    .clipped()
+            } else if let imageURL = item.imageURL, let url = URL(string: imageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .failure(_):
+                        Color(UIColor.secondarySystemBackground)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .foregroundColor(.secondary)
+                            )
+                    case .empty:
+                        Color(UIColor.secondarySystemBackground)
+                            .overlay(ProgressView())
+                    @unknown default:
+                        Color(UIColor.secondarySystemBackground)
+                    }
+                }
                 .frame(width: 56, height: 56)
                 .cornerRadius(12)
                 .clipped()
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(UIColor.secondarySystemBackground))
+                    .frame(width: 56, height: 56)
+                    .overlay(
+                        Image(systemName: "photo")
+                            .foregroundColor(.secondary)
+                    )
+            }
             
             VStack(alignment: .leading, spacing: 5) {
                 Text(item.result.foodName)

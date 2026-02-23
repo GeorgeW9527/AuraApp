@@ -31,15 +31,26 @@ struct NutritionResult: Codable, Identifiable {
 
 struct NutritionHistoryItem: Identifiable {
     let id: UUID
-    let image: UIImage
+    let image: UIImage?
+    let imageURL: String?
     let result: NutritionResult
     let date: Date
+    let cloudRecordId: String?
     
-    init(id: UUID = UUID(), image: UIImage, result: NutritionResult, date: Date = Date()) {
+    init(
+        id: UUID = UUID(),
+        image: UIImage? = nil,
+        imageURL: String? = nil,
+        result: NutritionResult,
+        date: Date = Date(),
+        cloudRecordId: String? = nil
+    ) {
         self.id = id
         self.image = image
+        self.imageURL = imageURL
         self.result = result
         self.date = date
+        self.cloudRecordId = cloudRecordId
     }
 }
 
@@ -401,7 +412,9 @@ class NutritionViewModel: ObservableObject {
         
         let historyItem = NutritionHistoryItem(
             image: image,
-            result: result
+            result: result,
+            date: Date(),
+            cloudRecordId: nil
         )
         
         history.insert(historyItem, at: 0)
@@ -409,6 +422,11 @@ class NutritionViewModel: ObservableObject {
         // 限制历史记录数量
         if history.count > 100 {
             history = Array(history.prefix(100))
+        }
+
+        // 同步保存到 Firebase（图片 + 营养分析结果）
+        Task {
+            await saveToCloud(result: result, image: image)
         }
         
         // 清除当前分析状态
@@ -513,7 +531,7 @@ class NutritionViewModel: ObservableObject {
         isSyncing = false
     }
     
-    /// 从云端加载记录
+    /// 从云端加载记录（缓存优先，失败不清空已有数据）
     func loadCloudRecords() async {
         guard firebaseManager.currentUser != nil else {
             print("⚠️ 用户未登录，跳过云端加载")
@@ -523,7 +541,7 @@ class NutritionViewModel: ObservableObject {
         isSyncing = true
         
         do {
-            print("📥 从云端加载营养记录...")
+            print("📥 从云端加载营养记录（缓存优先）...")
             let records = try await firebaseManager.fetchCollection(
                 collection: "nutritionRecords",
                 as: NutritionRecord.self
@@ -535,10 +553,48 @@ class NutritionViewModel: ObservableObject {
             
         } catch {
             print("❌ 云端加载失败: \(error.localizedDescription)")
-            errorMessage = "云端加载失败: \(error.localizedDescription)"
+            // 加载失败时不清空已有数据，保留上次成功加载的记录
+            if cloudRecords.isEmpty {
+                print("⚠️ 本地也没有缓存记录")
+            } else {
+                print("ℹ️ 保留已有 \(cloudRecords.count) 条本地记录")
+            }
         }
         
         isSyncing = false
+    }
+
+    /// 从云端记录重建本地历史（用于重启后恢复历史）
+    func syncHistoryFromCloud() async {
+        await loadCloudRecords()
+
+        // 只有当云端有数据时才更新 history，否则保留现有
+        guard !cloudRecords.isEmpty else {
+            print("ℹ️ 云端无记录，保留本地现有历史")
+            return
+        }
+
+        let mappedItems: [NutritionHistoryItem] = cloudRecords.map { record in
+            let result = NutritionResult(
+                foodName: record.foodName,
+                calories: Int(record.calories.rounded()),
+                protein: record.protein,
+                carbs: record.carbs,
+                fat: record.fat,
+                description: record.description
+            )
+
+            return NutritionHistoryItem(
+                image: nil,
+                imageURL: record.imageURL,
+                result: result,
+                date: record.timestamp,
+                cloudRecordId: record.id
+            )
+        }
+
+        self.history = mappedItems.sorted { $0.date > $1.date }
+        print("✅ 本地历史已从云端恢复: \(history.count) 条")
     }
     
     /// 删除云端记录

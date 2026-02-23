@@ -95,16 +95,38 @@ class FirebaseManager: ObservableObject {
         print("✅ 数据保存成功")
     }
     
-    /// 从 Firestore 获取数据
+    /// 从 Firestore 获取数据（优先本地缓存，后台同步服务器）
     func fetchData<T: Decodable>(collection: String, documentId: String, as type: T.Type) async throws -> T {
         guard let userId = currentUser?.uid else {
             throw NSError(domain: "FirebaseError", code: -1,
                          userInfo: [NSLocalizedDescriptionKey: "用户未登录"])
         }
         
-        print("📥 获取数据: \(collection)/\(userId)/\(documentId)")
         let docRef = firestore.collection(collection).document(userId).collection("items").document(documentId)
-        let document = try await docRef.getDocument()
+        
+        // 1. 先尝试从本地缓存读取（速度快，离线可用）
+        print("📥 获取数据(缓存优先): \(collection)/\(userId)/\(documentId)")
+        do {
+            let cachedDoc = try await docRef.getDocument(source: .cache)
+            if cachedDoc.exists {
+                let data = try cachedDoc.data(as: T.self)
+                print("✅ 从缓存获取数据成功")
+                
+                // 后台静默刷新服务器数据（不阻塞返回）
+                Task {
+                    _ = try? await docRef.getDocument(source: .server)
+                    print("🔄 后台服务器同步完成: \(collection)/\(documentId)")
+                }
+                
+                return data
+            }
+        } catch {
+            print("⚠️ 缓存读取失败，尝试服务器: \(error.localizedDescription)")
+        }
+        
+        // 2. 缓存没有，再走服务器
+        print("🌐 从服务器获取数据: \(collection)/\(userId)/\(documentId)")
+        let document = try await docRef.getDocument(source: .server)
         
         guard document.exists else {
             throw NSError(domain: "FirebaseError", code: -1,
@@ -112,26 +134,50 @@ class FirebaseManager: ObservableObject {
         }
         
         let data = try document.data(as: T.self)
-        print("✅ 数据获取成功")
+        print("✅ 从服务器获取数据成功")
         return data
     }
     
-    /// 获取集合中的所有数据
+    /// 获取集合中的所有数据（优先本地缓存，后台同步服务器）
     func fetchCollection<T: Decodable>(collection: String, as type: T.Type) async throws -> [T] {
         guard let userId = currentUser?.uid else {
             throw NSError(domain: "FirebaseError", code: -1,
                          userInfo: [NSLocalizedDescriptionKey: "用户未登录"])
         }
         
-        print("📥 获取集合: \(collection)/\(userId)")
         let collectionRef = firestore.collection(collection).document(userId).collection("items")
-        let snapshot = try await collectionRef.getDocuments()
         
-        let items = try snapshot.documents.compactMap { document -> T? in
-            try document.data(as: T.self)
+        // 1. 先尝试从本地缓存读取
+        print("📥 获取集合(缓存优先): \(collection)/\(userId)")
+        do {
+            let cachedSnapshot = try await collectionRef.getDocuments(source: .cache)
+            if !cachedSnapshot.documents.isEmpty {
+                let items = cachedSnapshot.documents.compactMap { document -> T? in
+                    try? document.data(as: T.self)
+                }
+                print("✅ 从缓存获取到 \(items.count) 条数据")
+                
+                // 后台静默刷新服务器数据
+                Task {
+                    _ = try? await collectionRef.getDocuments(source: .server)
+                    print("🔄 后台服务器同步完成: \(collection)")
+                }
+                
+                return items
+            }
+        } catch {
+            print("⚠️ 缓存读取失败，尝试服务器: \(error.localizedDescription)")
         }
         
-        print("✅ 获取到 \(items.count) 条数据")
+        // 2. 缓存没有，再走服务器
+        print("🌐 从服务器获取集合: \(collection)/\(userId)")
+        let snapshot = try await collectionRef.getDocuments(source: .server)
+        
+        let items = snapshot.documents.compactMap { document -> T? in
+            try? document.data(as: T.self)
+        }
+        
+        print("✅ 从服务器获取到 \(items.count) 条数据")
         return items
     }
     

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct UserProfileView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
@@ -17,6 +18,7 @@ struct UserProfileView: View {
     @State private var gender = "男"
     @State private var showingEditProfile = false
     @State private var showingLogoutAlert = false
+    @State private var isSavingProfile = false
     
     var bmi: Double {
         let heightInMeters = Double(height) / 100.0
@@ -234,7 +236,9 @@ struct UserProfileView: View {
                     height: $height,
                     weight: $weight,
                     age: $age,
-                    gender: $gender
+                    gender: $gender,
+                    isSaving: $isSavingProfile,
+                    onSave: saveProfile
                 )
             }
             .alert("退出登录", isPresented: $showingLogoutAlert) {
@@ -245,18 +249,48 @@ struct UserProfileView: View {
             } message: {
                 Text("确定要退出登录吗？")
             }
-            .onAppear {
-                // 加载用户配置
-                if let profile = authViewModel.userProfile {
-                    userName = profile.displayName ?? "健康达人"
-                    userEmail = profile.email
-                    height = Int(profile.height ?? 175)
-                    weight = Int(profile.weight ?? 70)
-                    age = profile.age ?? 28
-                    gender = profile.gender == "male" ? "男" : profile.gender == "female" ? "女" : "男"
-                }
+            .task {
+                await authViewModel.loadUserProfile()
+                applyProfileToLocalState()
+            }
+            .onChange(of: authViewModel.userProfile?.updatedAt) {
+                applyProfileToLocalState()
             }
         }
+    }
+
+    private func applyProfileToLocalState() {
+        guard let profile = authViewModel.userProfile else { return }
+        userName = profile.displayName ?? "健康达人"
+        userEmail = profile.email
+        height = Int(profile.height ?? 175)
+        weight = Int(profile.weight ?? 70)
+        age = profile.age ?? 28
+        gender = profile.gender == "female" ? "女" : "男"
+    }
+
+    private func saveProfile() async {
+        guard let currentUser = authViewModel.currentUser else { return }
+        isSavingProfile = true
+
+        let profile = UserProfile(
+            id: authViewModel.userProfile?.id,
+            userId: currentUser.uid,
+            displayName: userName.isEmpty ? "健康达人" : userName,
+            email: authViewModel.userProfile?.email ?? currentUser.email ?? userEmail,
+            avatarURL: authViewModel.userProfile?.avatarURL,
+            age: age,
+            gender: gender == "女" ? "female" : "male",
+            height: Double(height),
+            weight: Double(weight),
+            targetWeight: authViewModel.userProfile?.targetWeight,
+            dailyCalorieGoal: authViewModel.userProfile?.dailyCalorieGoal,
+            createdAt: authViewModel.userProfile?.createdAt ?? Date(),
+            updatedAt: Date()
+        )
+
+        await authViewModel.updateUserProfile(profile)
+        isSavingProfile = false
     }
 }
 
@@ -357,6 +391,8 @@ struct EditProfileView: View {
     @Binding var weight: Int
     @Binding var age: Int
     @Binding var gender: String
+    @Binding var isSaving: Bool
+    let onSave: () async -> Void
     
     var body: some View {
         NavigationView {
@@ -389,9 +425,13 @@ struct EditProfileView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") {
-                        presentationMode.wrappedValue.dismiss()
+                        Task {
+                            await onSave()
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }
                     .fontWeight(.semibold)
+                    .disabled(isSaving)
                 }
             }
         }
@@ -400,4 +440,5 @@ struct EditProfileView: View {
 
 #Preview {
     UserProfileView()
+        .environmentObject(AuthViewModel())
 }

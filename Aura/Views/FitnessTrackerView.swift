@@ -7,17 +7,36 @@
 
 import SwiftUI
 import Charts
+import FirebaseAuth
 
 struct FitnessTrackerView: View {
     @State private var selectedWorkout: WorkoutType = .running
     @State private var duration: Double = 30
     @State private var isTracking = false
+    @State private var isLoadingCloud = false
     @State private var workoutHistory: [WorkoutSession] = [
         WorkoutSession(type: .running, duration: 45, calories: 380, date: Date().addingTimeInterval(-86400)),
         WorkoutSession(type: .cycling, duration: 60, calories: 420, date: Date().addingTimeInterval(-172800)),
         WorkoutSession(type: .swimming, duration: 30, calories: 250, date: Date().addingTimeInterval(-259200)),
         WorkoutSession(type: .yoga, duration: 40, calories: 150, date: Date().addingTimeInterval(-345600))
     ]
+    private let firebaseManager = FirebaseManager.shared
+
+    private var weeklyWorkouts: [WorkoutSession] {
+        workoutHistory.filter { Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .weekOfYear) }
+    }
+
+    private var weeklyWorkoutCount: Int {
+        weeklyWorkouts.count
+    }
+
+    private var weeklyDuration: Int {
+        weeklyWorkouts.reduce(0) { $0 + $1.duration }
+    }
+
+    private var weeklyCalories: Int {
+        weeklyWorkouts.reduce(0) { $0 + $1.calories }
+    }
     
     var body: some View {
         NavigationView {
@@ -27,7 +46,7 @@ struct FitnessTrackerView: View {
                     HStack(spacing: 15) {
                         QuickStatCard(
                             title: "本周运动",
-                            value: "5",
+                            value: "\(weeklyWorkoutCount)",
                             unit: "次",
                             icon: "figure.run.circle.fill",
                             color: .green
@@ -35,7 +54,7 @@ struct FitnessTrackerView: View {
                         
                         QuickStatCard(
                             title: "总时长",
-                            value: "175",
+                            value: "\(weeklyDuration)",
                             unit: "分钟",
                             icon: "clock.fill",
                             color: .blue
@@ -43,7 +62,7 @@ struct FitnessTrackerView: View {
                         
                         QuickStatCard(
                             title: "消耗",
-                            value: "1200",
+                            value: "\(weeklyCalories)",
                             unit: "kcal",
                             icon: "flame.fill",
                             color: .orange
@@ -150,6 +169,9 @@ struct FitnessTrackerView: View {
                 .padding(.bottom)
             }
             .navigationTitle("运动追踪")
+            .task {
+                await loadCloudWorkoutHistory()
+            }
         }
     }
     
@@ -165,15 +187,75 @@ struct FitnessTrackerView: View {
                 date: Date()
             )
             workoutHistory.insert(newWorkout, at: 0)
+            Task {
+                await saveWorkoutToCloud(newWorkout)
+            }
         }
     }
     
     func getWeeklyData() -> [WeeklyWorkoutData] {
-        let days = ["一", "二", "三", "四", "五", "六", "日"]
-        let durations = [30, 45, 0, 60, 40, 0, 25]
-        
+        let days = ["日", "一", "二", "三", "四", "五", "六"]
+        var durations = Array(repeating: 0, count: 7)
+
+        for workout in weeklyWorkouts {
+            let weekdayIndex = Calendar.current.component(.weekday, from: workout.date) - 1
+            if weekdayIndex >= 0 && weekdayIndex < durations.count {
+                durations[weekdayIndex] += workout.duration
+            }
+        }
+
         return zip(days, durations).map { day, duration in
             WeeklyWorkoutData(day: day, duration: duration)
+        }
+    }
+
+    private func saveWorkoutToCloud(_ workout: WorkoutSession) async {
+        guard firebaseManager.currentUser != nil else { return }
+
+        let record = FitnessRecord(
+            id: workout.id,
+            activityType: workout.type.rawValue,
+            duration: TimeInterval(workout.duration * 60),
+            calories: Double(workout.calories),
+            timestamp: workout.date,
+            userId: firebaseManager.currentUser?.uid ?? ""
+        )
+
+        do {
+            try await firebaseManager.saveData(
+                collection: "fitnessRecords",
+                documentId: workout.id,
+                data: record
+            )
+            print("✅ 运动记录已同步到云端: \(workout.id)")
+        } catch {
+            print("❌ 运动记录同步失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func loadCloudWorkoutHistory() async {
+        guard firebaseManager.currentUser != nil else { return }
+        isLoadingCloud = true
+        defer { isLoadingCloud = false }
+
+        do {
+            let records = try await firebaseManager.fetchCollection(
+                collection: "fitnessRecords",
+                as: FitnessRecord.self
+            )
+            let mapped = records.map { record in
+                WorkoutSession(
+                    id: record.id ?? UUID().uuidString,
+                    type: WorkoutType(rawValue: record.activityType) ?? .walking,
+                    duration: Int(record.duration / 60),
+                    calories: Int(record.calories.rounded()),
+                    date: record.timestamp
+                )
+            }
+            self.workoutHistory = mapped.sorted(by: { $0.date > $1.date })
+            print("✅ 已加载 \(mapped.count) 条运动记录")
+        } catch {
+            print("❌ 加载云端运动记录失败: \(error.localizedDescription)")
         }
     }
 }
@@ -309,11 +391,19 @@ enum WorkoutType: String, CaseIterable {
 }
 
 struct WorkoutSession: Identifiable {
-    let id = UUID()
+    let id: String
     let type: WorkoutType
     let duration: Int
     let calories: Int
     let date: Date
+
+    init(id: String = UUID().uuidString, type: WorkoutType, duration: Int, calories: Int, date: Date) {
+        self.id = id
+        self.type = type
+        self.duration = duration
+        self.calories = calories
+        self.date = date
+    }
 }
 
 struct WeeklyWorkoutData: Identifiable {

@@ -183,21 +183,30 @@ class AuthViewModel: ObservableObject {
                 as: UserProfile.self
             )
             self.userProfile = profile
-            print("✅ 用户配置加载成功")
-        } catch {
+            print("✅ 用户配置加载成功: \(profile.displayName ?? "无昵称")")
+        } catch let error as NSError {
             print("⚠️ 用户配置加载失败: \(error.localizedDescription)")
-            // 如果配置不存在，创建默认配置
-            if let email = currentUser?.email {
-                let profile = UserProfile(userId: userId, email: email)
-                self.userProfile = profile
-                
-                Task {
-                    try? await firebaseManager.saveData(
-                        collection: "userProfiles",
-                        documentId: userId,
-                        data: profile
-                    )
+            
+            // 只有当错误明确是"数据不存在"（首次注册）时才创建默认配置
+            // 网络超时/连接失败时不覆盖，保留本地已有数据
+            let isDataNotFound = error.localizedDescription.contains("数据不存在")
+            
+            if isDataNotFound, self.userProfile == nil {
+                print("📝 首次使用，创建默认用户配置")
+                if let email = currentUser?.email {
+                    let profile = UserProfile(userId: userId, email: email)
+                    self.userProfile = profile
+                    
+                    Task {
+                        try? await firebaseManager.saveData(
+                            collection: "userProfiles",
+                            documentId: userId,
+                            data: profile
+                        )
+                    }
                 }
+            } else {
+                print("⚠️ 网络问题导致加载失败，保留现有数据不覆盖")
             }
         }
     }

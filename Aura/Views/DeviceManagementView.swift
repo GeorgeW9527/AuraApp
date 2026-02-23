@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct DeviceManagementView: View {
     @State private var connectedDevices: [HealthDevice] = [
@@ -15,6 +16,7 @@ struct DeviceManagementView: View {
     ]
     
     @State private var showingAddDevice = false
+    private let firebaseManager = FirebaseManager.shared
     
     var body: some View {
         NavigationView {
@@ -150,12 +152,19 @@ struct DeviceManagementView: View {
             .sheet(isPresented: $showingAddDevice) {
                 AddDeviceView()
             }
+            .task {
+                await loadCloudDevices()
+            }
         }
     }
     
     func toggleConnection(device: HealthDevice) {
         if let index = connectedDevices.firstIndex(where: { $0.id == device.id }) {
             connectedDevices[index].isConnected.toggle()
+            let updatedDevice = connectedDevices[index]
+            Task {
+                await saveDeviceToCloud(updatedDevice)
+            }
         }
     }
     
@@ -165,6 +174,79 @@ struct DeviceManagementView: View {
             if connectedDevices[index].isConnected {
                 connectedDevices[index].lastSync = Date()
             }
+        }
+        Task {
+            await syncConnectedDevicesToCloud()
+        }
+    }
+
+    private func loadCloudDevices() async {
+        guard firebaseManager.currentUser != nil else { return }
+
+        do {
+            let records = try await firebaseManager.fetchCollection(
+                collection: "devices",
+                as: DeviceInfo.self
+            )
+
+            if records.isEmpty {
+                await bootstrapDefaultDevicesToCloudIfNeeded()
+                return
+            }
+
+            let mapped = records.map { record in
+                HealthDevice(
+                    id: record.id ?? UUID().uuidString,
+                    name: record.deviceName,
+                    type: DeviceType.fromCloudValue(record.deviceType),
+                    isConnected: record.isConnected,
+                    batteryLevel: 80,
+                    lastSync: record.lastSyncTime ?? Date()
+                )
+            }
+
+            self.connectedDevices = mapped
+            print("✅ 已加载 \(mapped.count) 台设备")
+        } catch {
+            print("❌ 加载设备失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func saveDeviceToCloud(_ device: HealthDevice) async {
+        guard let userId = firebaseManager.currentUser?.uid else { return }
+
+        let info = DeviceInfo(
+            id: device.id,
+            deviceType: device.type.cloudValue,
+            deviceName: device.name,
+            deviceModel: device.name,
+            systemVersion: "iOS",
+            isConnected: device.isConnected,
+            lastSyncTime: device.lastSync,
+            userId: userId
+        )
+
+        do {
+            try await firebaseManager.saveData(
+                collection: "devices",
+                documentId: device.id,
+                data: info
+            )
+            print("✅ 设备状态已同步: \(device.name)")
+        } catch {
+            print("❌ 设备状态同步失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func syncConnectedDevicesToCloud() async {
+        for device in connectedDevices where device.isConnected {
+            await saveDeviceToCloud(device)
+        }
+    }
+
+    private func bootstrapDefaultDevicesToCloudIfNeeded() async {
+        for device in connectedDevices {
+            await saveDeviceToCloud(device)
         }
     }
 }
@@ -353,12 +435,28 @@ struct AddDeviceView: View {
 
 // Models
 struct HealthDevice: Identifiable {
-    let id = UUID()
+    let id: String
     let name: String
     let type: DeviceType
     var isConnected: Bool
     var batteryLevel: Int
     var lastSync: Date
+
+    init(
+        id: String = UUID().uuidString,
+        name: String,
+        type: DeviceType,
+        isConnected: Bool,
+        batteryLevel: Int,
+        lastSync: Date
+    ) {
+        self.id = id
+        self.name = name
+        self.type = type
+        self.isConnected = isConnected
+        self.batteryLevel = batteryLevel
+        self.lastSync = lastSync
+    }
 }
 
 enum DeviceType {
@@ -373,6 +471,30 @@ enum DeviceType {
         case .fitnessBand: return "wristwatch"
         case .scale: return "scalemass"
         case .heartRateMonitor: return "heart.circle"
+        }
+    }
+
+    var cloudValue: String {
+        switch self {
+        case .smartWatch: return "smart_watch"
+        case .fitnessBand: return "fitness_band"
+        case .scale: return "scale"
+        case .heartRateMonitor: return "heart_rate_monitor"
+        }
+    }
+
+    static func fromCloudValue(_ value: String) -> DeviceType {
+        switch value {
+        case "smart_watch", "Apple Watch":
+            return .smartWatch
+        case "fitness_band", "Fitness Band":
+            return .fitnessBand
+        case "scale", "Scale":
+            return .scale
+        case "heart_rate_monitor", "Heart Rate Monitor":
+            return .heartRateMonitor
+        default:
+            return .smartWatch
         }
     }
 }
