@@ -118,7 +118,7 @@ class NutritionViewModel: ObservableObject {
         
         // 先缩小图片尺寸
         print("📐 原始图片尺寸: \(image.size.width) x \(image.size.height)")
-        let resizedImage = resizeImage(image, maxSize: 1024)
+        let resizedImage = resizeImage(image, maxLongEdge: 640)
         
         // 压缩图片
         print("🗜️ 开始压缩图片，质量: \(APIConfig.imageCompressionQuality)")
@@ -535,17 +535,22 @@ class NutritionViewModel: ObservableObject {
     }
     
     // 缩小图片尺寸以加快上传速度
-    private func resizeImage(_ image: UIImage, maxSize: CGFloat) -> UIImage {
+    /// 等比缩放图片，将长边缩放到 maxLongEdge，短边按比例计算
+    private func resizeImage(_ image: UIImage, maxLongEdge: CGFloat) -> UIImage {
         let size = image.size
+        let longEdge = max(size.width, size.height)
         
-        // 如果图片已经够小，直接返回
-        if size.width <= maxSize && size.height <= maxSize {
+        // 如果长边已经 <= 目标值，直接返回
+        if longEdge <= maxLongEdge {
+            print("📏 图片无需缩放: \(Int(size.width))x\(Int(size.height))，长边 \(Int(longEdge)) <= \(Int(maxLongEdge))")
             return image
         }
         
-        // 计算缩放比例
-        let ratio = min(maxSize / size.width, maxSize / size.height)
-        let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+        // 以长边为基准计算等比缩放比例
+        let ratio = maxLongEdge / longEdge
+        let newWidth = round(size.width * ratio)
+        let newHeight = round(size.height * ratio)
+        let newSize = CGSize(width: newWidth, height: newHeight)
         
         // 创建新图片
         let renderer = UIGraphicsImageRenderer(size: newSize)
@@ -553,7 +558,7 @@ class NutritionViewModel: ObservableObject {
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }
         
-        print("📏 图片缩放: \(size.width)x\(size.height) → \(newSize.width)x\(newSize.height)")
+        print("📏 图片等比缩放: \(Int(size.width))x\(Int(size.height)) → \(Int(newWidth))x\(Int(newHeight))（长边→\(Int(maxLongEdge))）")
         
         return resizedImage
     }
