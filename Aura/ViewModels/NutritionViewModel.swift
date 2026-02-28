@@ -414,12 +414,13 @@ class NutritionViewModel: ObservableObject {
     }
     
     func saveToHistory() {
-        guard let image = selectedImage, let result = analysisResult else { return }
-        
+        guard let image = selectedImage, let result = analysisResult,
+              let userId = firebaseManager.currentUser?.uid else { return }
+
         let itemId = UUID()
-        
-        // 保存图片到本地文件系统
-        _ = localStorage.saveNutritionImage(image, id: itemId.uuidString)
+
+        // 保存图片到本地（按 userId 分目录）
+        _ = localStorage.saveNutritionImage(image, id: itemId.uuidString, userId: userId)
         
         let historyItem = NutritionHistoryItem(
             id: itemId,
@@ -458,8 +459,9 @@ class NutritionViewModel: ObservableObject {
     
     // MARK: - 本地存储
     
-    /// 保存历史记录到本地（UserDefaults + 文件系统）
+    /// 保存历史记录到本地（按 userId 分文件，切换账号后数据保留）
     private func saveToLocalStorage() {
+        guard let userId = firebaseManager.currentUser?.uid else { return }
         let localRecords: [LocalStorageManager.LocalNutritionRecord] = history.map { item in
             LocalStorageManager.LocalNutritionRecord(
                 id: item.id.uuidString,
@@ -474,14 +476,16 @@ class NutritionViewModel: ObservableObject {
                 timestamp: item.date
             )
         }
-        localStorage.saveNutritionRecords(localRecords)
+        localStorage.saveNutritionRecords(localRecords, userId: userId)
     }
-    
-    /// 从本地存储恢复历史记录
-    private func loadFromLocalStorage() {
-        let localRecords = localStorage.loadNutritionRecords()
+
+    /// 确保本地数据已加载（供 .task 调用，处理 init 时 userId 尚不可用的情况）
+    func ensureLocalDataLoaded() {
+        guard let userId = firebaseManager.currentUser?.uid else { return }
+        guard history.isEmpty else { return }
+        let localRecords = localStorage.loadNutritionRecords(userId: userId)
         guard !localRecords.isEmpty else { return }
-        
+
         self.history = localRecords.map { record in
             let result = NutritionResult(
                 foodName: record.foodName,
@@ -495,7 +499,7 @@ class NutritionViewModel: ObservableObject {
             // 尝试从本地文件加载图片
             let localImage: UIImage? = {
                 if let fileName = record.imageFileName {
-                    return localStorage.loadNutritionImage(fileName: fileName)
+                    return localStorage.loadNutritionImage(fileName: fileName, userId: userId)
                 }
                 return nil
             }()
@@ -509,8 +513,13 @@ class NutritionViewModel: ObservableObject {
                 cloudRecordId: nil
             )
         }.sorted { $0.date > $1.date }
-        
+
         print("✅ 从本地恢复了 \(history.count) 条营养记录")
+    }
+
+    /// 从本地存储恢复历史记录（init 和 ensureLocalDataLoaded 共用）
+    private func loadFromLocalStorage() {
+        ensureLocalDataLoaded()
     }
     
     // MARK: - 日历相关
@@ -690,15 +699,15 @@ class NutritionViewModel: ObservableObject {
         print("✅ 云端同步完成，当前共 \(history.count) 条记录")
     }
     
-    /// 更新单条记录（食物名称、热量）；同步到本地与云端
-    func updateHistoryItem(_ item: NutritionHistoryItem, foodName: String, calories: Int) async {
+    /// 更新单条记录（完整营养数据）；同步到本地与云端
+    func updateHistoryItem(_ item: NutritionHistoryItem, foodName: String, calories: Int, protein: Double, carbs: Double, fat: Double) async {
         let newResult = NutritionResult(
             id: item.result.id,
             foodName: foodName,
             calories: calories,
-            protein: item.result.protein,
-            carbs: item.result.carbs,
-            fat: item.result.fat,
+            protein: protein,
+            carbs: carbs,
+            fat: fat,
             description: item.result.description
         )
         let newItem = NutritionHistoryItem(
@@ -721,9 +730,9 @@ class NutritionViewModel: ObservableObject {
             id: recordId,
             foodName: foodName,
             calories: Double(calories),
-            protein: cloudRecord.protein,
-            carbs: cloudRecord.carbs,
-            fat: cloudRecord.fat,
+            protein: protein,
+            carbs: carbs,
+            fat: fat,
             description: cloudRecord.description,
             imageURL: cloudRecord.imageURL,
             timestamp: cloudRecord.timestamp,

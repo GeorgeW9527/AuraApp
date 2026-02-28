@@ -26,6 +26,7 @@ struct InsightCard: Identifiable {
 }
 
 struct AIAdviceView: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
     @State private var inputText = ""
     @State private var messages: [ChatMessage] = [
         ChatMessage(
@@ -83,10 +84,7 @@ struct AIAdviceView: View {
     private var headerSection: some View {
         HStack(alignment: .center) {
             NavigationLink(destination: UserProfileView()) {
-                Circle()
-                    .fill(Color(white: 0.92))
-                    .frame(width: 44, height: 44)
-                    .overlay(Image(systemName: "person.fill").font(.title3).foregroundColor(Color.auraGrayLight))
+                ProfileHeaderAvatarView(size: 44)
             }
             .buttonStyle(.plain)
             Spacer()

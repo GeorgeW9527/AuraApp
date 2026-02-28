@@ -7,21 +7,28 @@
 
 import SwiftUI
 import FirebaseAuth
+import UIKit
 
 struct UserProfileView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var userName = "Alex Rivera"
-    @State private var userEmail = "user@aura.com"
+    @State private var userName = ""
+    @State private var userEmail = ""
     @State private var height = 175
     @State private var weight = 70
     @State private var age = 28
     @State private var gender = "男"
+    @State private var restingHeartRate = 65
+    @State private var healthGoalRaw = "weight_loss"
     @State private var notificationsEnabled = true
     @State private var useMetric = true
     @State private var showingEditProfile = false
     @State private var showingLogoutAlert = false
     @State private var isSavingProfile = false
+    @State private var showingAvatarSourceSheet = false
+    @State private var showingImagePicker = false
+    @State private var showingCamera = false
+    @State private var selectedAvatarImage: UIImage?
 
     private var userShortId: String {
         let uid = authViewModel.currentUser?.uid ?? "0000"
@@ -63,6 +70,9 @@ struct UserProfileView: View {
                 weight: $weight,
                 age: $age,
                 gender: $gender,
+                restingHeartRate: $restingHeartRate,
+                healthGoalRaw: $healthGoalRaw,
+                useMetric: $useMetric,
                 isSaving: $isSavingProfile,
                 onSave: saveProfile
             )
@@ -88,38 +98,124 @@ struct UserProfileView: View {
 
     private var profileHeader: some View {
         VStack(spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.orange.opacity(0.8), Color.orange.opacity(0.5)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+            Button {
+                showingAvatarSourceSheet = true
+            } label: {
+                ZStack(alignment: .bottomTrailing) {
+                    avatarView
+                    Circle()
+                        .fill(Color.auraGreen)
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white)
                         )
-                    )
-                    .frame(width: 100, height: 100)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.auraGreen, lineWidth: 2)
-                    )
-                Text(String(userName.prefix(1)))
-                    .font(.system(size: 40, weight: .bold))
-                    .foregroundColor(.white)
-                Circle()
-                    .fill(Color.auraGreen)
-                    .frame(width: 14, height: 14)
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                    .offset(x: -4, y: -4)
+                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                        .offset(x: -4, y: -4)
+                }
             }
-            Text(userName)
+            .buttonStyle(.plain)
+            .confirmationDialog("更换头像", isPresented: $showingAvatarSourceSheet) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("拍照") {
+                        showingCamera = true
+                    }
+                }
+                Button("从相册选择") {
+                    showingImagePicker = true
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("选择头像来源")
+            }
+            .sheet(isPresented: $showingImagePicker) {
+                ImagePicker(image: $selectedAvatarImage, onImageSelected: {
+                    showingImagePicker = false
+                    handleAvatarSelected()
+                })
+            }
+            .sheet(isPresented: $showingCamera) {
+                CameraView(image: $selectedAvatarImage, onImageCaptured: {
+                    showingCamera = false
+                    handleAvatarSelected()
+                })
+            }
+            Text(userName.isEmpty ? "用户" : userName)
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(Color.auraGrayDark)
+            Text(userEmail)
+                .font(.subheadline)
+                .foregroundColor(Color.auraGrayLight)
             Text("ID: \(userShortId)")
                 .font(.caption)
                 .foregroundColor(Color.auraGrayLight)
         }
         .padding(.top, 20)
+    }
+
+    private func handleAvatarSelected() {
+        guard let image = selectedAvatarImage else { return }
+        LocalStorageManager.shared.saveUserAvatar(image)
+        Task {
+            await authViewModel.uploadAvatar(image)
+        }
+    }
+
+    @ViewBuilder
+    private var avatarView: some View {
+        if let image = selectedAvatarImage {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 100, height: 100)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
+        } else if let localImage = LocalStorageManager.shared.loadUserAvatar() {
+            Image(uiImage: localImage)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 100, height: 100)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
+        } else if let urlString = authViewModel.userProfile?.avatarURL, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img):
+                    img.resizable().aspectRatio(contentMode: .fill)
+                case .failure:
+                    avatarPlaceholder
+                case .empty:
+                    ProgressView()
+                @unknown default:
+                    avatarPlaceholder
+                }
+            }
+            .frame(width: 100, height: 100)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
+        } else {
+            avatarPlaceholder
+        }
+    }
+
+    private var avatarPlaceholder: some View {
+        Circle()
+            .fill(
+                LinearGradient(
+                    colors: [Color.auraGreen.opacity(0.8), Color.auraGreen.opacity(0.5)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .frame(width: 100, height: 100)
+            .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
+            .overlay(
+                Text(String((userName.isEmpty ? "用" : userName).prefix(1)))
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundColor(.white)
+            )
     }
 
     // MARK: - AI Health Score Card
@@ -167,6 +263,22 @@ struct UserProfileView: View {
 
     // MARK: - HEALTH DATA Section
 
+    private var bodyProfileSubtitle: String {
+        let h = useMetric ? "\(height) cm" : "\(Int(Double(height) * 0.0328084)) ft"
+        let w = useMetric ? "\(weight) kg" : "\(Int(Double(weight) * 2.205)) lb"
+        let goal = healthGoalDisplay
+        return "\(h), \(w), RHR \(restingHeartRate) · \(goal)"
+    }
+
+    private var healthGoalDisplay: String {
+        switch healthGoalRaw {
+        case "weight_loss": return "Weight Loss"
+        case "balanced_diet": return "Balanced Diet"
+        case "build_muscle": return "Build Muscle"
+        default: return "Balanced Diet"
+        }
+    }
+
     private var healthDataSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("HEALTH DATA")
@@ -179,7 +291,7 @@ struct UserProfileView: View {
                     icon: "person",
                     iconColor: Color.auraGreen,
                     title: "Body Profile",
-                    subtitle: "Height, Weight, Biometrics"
+                    subtitle: bodyProfileSubtitle
                 ) { showingEditProfile = true }
 
                 Divider().padding(.leading, 56)
@@ -194,12 +306,15 @@ struct UserProfileView: View {
 
                 Divider().padding(.leading, 56)
 
-                SettingsNavRow(
-                    icon: "chart.line.uptrend.xyaxis",
-                    iconColor: Color.auraGreen,
-                    title: "Smart Report",
-                    subtitle: "Comprehensive health & nutrition insights"
-                ) { /* TODO */ }
+                NavigationLink(destination: SmartReportView()) {
+                    SettingsNavRowContent(
+                        icon: "chart.line.uptrend.xyaxis",
+                        iconColor: Color.auraGreen,
+                        title: "Smart Report",
+                        subtitle: "Comprehensive health & nutrition insights"
+                    )
+                }
+                .buttonStyle(.plain)
             }
             .background(Color.white)
             .cornerRadius(14)
@@ -246,7 +361,10 @@ struct UserProfileView: View {
                         .foregroundColor(Color.auraGrayDark)
                     Spacer()
                     HStack(spacing: 0) {
-                        Button { useMetric = true } label: {
+                        Button {
+                            useMetric = true
+                            Task { await saveProfileIfNeeded() }
+                        } label: {
                             Text("Metric")
                                 .font(.caption)
                                 .fontWeight(.medium)
@@ -257,7 +375,10 @@ struct UserProfileView: View {
                                 .cornerRadius(8)
                         }
                         .buttonStyle(.plain)
-                        Button { useMetric = false } label: {
+                        Button {
+                            useMetric = false
+                            Task { await saveProfileIfNeeded() }
+                        } label: {
                             Text("Imperial")
                                 .font(.caption)
                                 .fontWeight(.medium)
@@ -349,12 +470,15 @@ struct UserProfileView: View {
 
     private func applyProfileToLocalState() {
         guard let profile = authViewModel.userProfile else { return }
-        userName = profile.displayName ?? "Alex Rivera"
-        userEmail = profile.email
+        userName = profile.displayName ?? ""
+        userEmail = profile.email.isEmpty ? (authViewModel.currentUser?.email ?? "") : profile.email
         height = Int(profile.height ?? 175)
         weight = Int(profile.weight ?? 70)
         age = profile.age ?? 28
         gender = profile.gender == "female" ? "女" : "男"
+        restingHeartRate = profile.restingHeartRate ?? 65
+        healthGoalRaw = profile.healthGoal ?? "balanced_diet"
+        useMetric = profile.useMetric ?? true
     }
 
     private func saveProfile() async {
@@ -363,7 +487,7 @@ struct UserProfileView: View {
         let profile = UserProfile(
             id: authViewModel.userProfile?.id,
             userId: currentUser.uid,
-            displayName: userName.isEmpty ? "Alex Rivera" : userName,
+            displayName: userName.isEmpty ? nil : userName,
             email: authViewModel.userProfile?.email ?? currentUser.email ?? userEmail,
             avatarURL: authViewModel.userProfile?.avatarURL,
             age: age,
@@ -372,11 +496,23 @@ struct UserProfileView: View {
             weight: Double(weight),
             targetWeight: authViewModel.userProfile?.targetWeight,
             dailyCalorieGoal: authViewModel.userProfile?.dailyCalorieGoal,
+            restingHeartRate: restingHeartRate,
+            healthGoal: healthGoalRaw,
+            useMetric: useMetric,
+            hasCompletedQuestionnaire: authViewModel.userProfile?.hasCompletedQuestionnaire,
             createdAt: authViewModel.userProfile?.createdAt ?? Date(),
             updatedAt: Date()
         )
         await authViewModel.updateUserProfile(profile)
         isSavingProfile = false
+    }
+
+    private func saveProfileIfNeeded() async {
+        guard authViewModel.currentUser != nil,
+              var profile = authViewModel.userProfile else { return }
+        profile.useMetric = useMetric
+        profile.updatedAt = Date()
+        await authViewModel.updateUserProfile(profile)
     }
 }
 
@@ -394,6 +530,54 @@ struct SettingsIconView: View {
     }
 }
 
+struct SettingsNavRowContent: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String?
+    var showAIBadge = false
+    var showExternalLink = false
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack(alignment: .topTrailing) {
+                SettingsIconView(icon: icon, color: iconColor)
+                if showAIBadge {
+                    Text("AI")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(2)
+                        .background(Color.auraGreen)
+                        .cornerRadius(4)
+                        .offset(x: 4, y: -4)
+                }
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(Color.auraGrayDark)
+                if let sub = subtitle {
+                    Text(sub)
+                        .font(.caption)
+                        .foregroundColor(Color.auraGrayLight)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if showExternalLink {
+                Image(systemName: "arrow.up.right")
+                    .font(.caption)
+                    .foregroundColor(Color.auraGrayLight)
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(Color.auraGrayLight)
+            }
+        }
+        .padding(14)
+    }
+}
+
 struct SettingsNavRow: View {
     let icon: String
     let iconColor: Color
@@ -405,48 +589,20 @@ struct SettingsNavRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                ZStack(alignment: .topTrailing) {
-                    SettingsIconView(icon: icon, color: iconColor)
-                    if showAIBadge {
-                        Text("AI")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(2)
-                            .background(Color.auraGreen)
-                            .cornerRadius(4)
-                            .offset(x: 4, y: -4)
-                    }
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(Color.auraGrayDark)
-                    if let sub = subtitle {
-                        Text(sub)
-                            .font(.caption)
-                            .foregroundColor(Color.auraGrayLight)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if showExternalLink {
-                    Image(systemName: "arrow.up.right")
-                        .font(.caption)
-                        .foregroundColor(Color.auraGrayLight)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(Color.auraGrayLight)
-                }
-            }
-            .padding(14)
+            SettingsNavRowContent(
+                icon: icon,
+                iconColor: iconColor,
+                title: title,
+                subtitle: subtitle,
+                showAIBadge: showAIBadge,
+                showExternalLink: showExternalLink
+            )
         }
         .buttonStyle(.plain)
     }
 }
 
-// MARK: - Edit Profile（保留原有）
+// MARK: - Edit Profile
 
 struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
@@ -455,33 +611,48 @@ struct EditProfileView: View {
     @Binding var weight: Int
     @Binding var age: Int
     @Binding var gender: String
+    @Binding var restingHeartRate: Int
+    @Binding var healthGoalRaw: String
+    @Binding var useMetric: Bool
     @Binding var isSaving: Bool
     let onSave: () async -> Void
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
-                Section(header: Text("Basic Info")) {
-                    TextField("Name", text: $userName)
-                    Picker("Gender", selection: $gender) {
-                        Text("Male").tag("男")
-                        Text("Female").tag("女")
+                Section(header: Text("基本信息")) {
+                    TextField("昵称（选填）", text: $userName)
+                    Picker("性别", selection: $gender) {
+                        Text("男").tag("男")
+                        Text("女").tag("女")
                     }
-                    Stepper("Age: \(age)", value: $age, in: 1...120)
+                    Stepper("年龄: \(age)", value: $age, in: 1...120)
                 }
-                Section(header: Text("Body Data")) {
-                    Stepper("Height: \(height) cm", value: $height, in: 100...250)
-                    Stepper("Weight: \(weight) kg", value: $weight, in: 30...200)
+                Section(header: Text("身体数据")) {
+                    Picker("单位", selection: $useMetric) {
+                        Text("公制 (cm/kg)").tag(true)
+                        Text("英制 (ft/lb)").tag(false)
+                    }
+                    Stepper("身高: \(height) cm", value: $height, in: 100...250)
+                    Stepper("体重: \(weight) kg", value: $weight, in: 30...200)
+                    Stepper("静息心率: \(restingHeartRate) BPM", value: $restingHeartRate, in: 40...120)
+                }
+                Section(header: Text("健康目标")) {
+                    Picker("主要目标", selection: $healthGoalRaw) {
+                        Text("Weight Loss").tag("weight_loss")
+                        Text("Balanced Diet").tag("balanced_diet")
+                        Text("Build Muscle").tag("build_muscle")
+                    }
                 }
             }
-            .navigationTitle("Edit Profile")
+            .navigationTitle("编辑资料")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
+                    Button("保存") {
                         Task {
                             await onSave()
                             dismiss()
@@ -493,6 +664,48 @@ struct EditProfileView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - 可复用头像视图（各 Tab 左上角使用）
+
+struct ProfileHeaderAvatarView: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
+    var size: CGFloat = 44
+
+    private var displayName: String {
+        authViewModel.userProfile?.displayName ?? "用户"
+    }
+
+    var body: some View {
+        Group {
+            if let localImage = LocalStorageManager.shared.loadUserAvatar() {
+                Image(uiImage: localImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if let urlString = authViewModel.userProfile?.avatarURL, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().aspectRatio(contentMode: .fill)
+                    default: avatarPlaceholder
+                    }
+                }
+            } else {
+                avatarPlaceholder
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+
+    private var avatarPlaceholder: some View {
+        Circle()
+            .fill(Color.auraGreen.opacity(0.3))
+            .overlay(
+                Text(String(displayName.prefix(1)).isEmpty ? "用" : String(displayName.prefix(1)))
+                    .font(.system(size: size * 0.4, weight: .bold))
+                    .foregroundColor(Color.auraGreen)
+            )
     }
 }
 

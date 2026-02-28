@@ -55,19 +55,12 @@ struct DailyDashboardView: View {
         HStack(alignment: .center) {
             NavigationLink(destination: UserProfileView()) {
                 HStack(spacing: 12) {
-                    Circle()
-                        .fill(Color(white: 0.92))
-                        .frame(width: 48, height: 48)
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .font(.title2)
-                                .foregroundColor(Color.auraGrayLight)
-                        )
+                    ProfileHeaderAvatarView(size: 48)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Health Profile")
                             .font(.caption)
                             .foregroundColor(Color.auraGrayLight)
-                        Text(displayName)
+                        Text(displayName.isEmpty ? "用户" : displayName)
                             .font(.headline)
                             .fontWeight(.bold)
                             .foregroundColor(Color.auraGrayDark)

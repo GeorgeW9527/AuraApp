@@ -26,9 +26,7 @@ class LocalStorageManager {
     }()
     
     private init() {
-        // 确保所有目录存在
         createDirectoryIfNeeded(dataDirectory)
-        createDirectoryIfNeeded(nutritionImagesDirectory)
         print("📦 LocalStorageManager 初始化完成, 数据目录: \(dataDirectory.path)")
     }
     
@@ -42,20 +40,26 @@ class LocalStorageManager {
         documentsDirectory.appendingPathComponent("AuraData", isDirectory: true)
     }
     
-    private var nutritionImagesDirectory: URL {
-        documentsDirectory.appendingPathComponent("NutritionImages", isDirectory: true)
-    }
-    
     private var userProfileFile: URL {
         dataDirectory.appendingPathComponent("user_profile.json")
     }
-    
-    private var nutritionRecordsFile: URL {
-        dataDirectory.appendingPathComponent("nutrition_records.json")
+
+    private var userAvatarFile: URL {
+        dataDirectory.appendingPathComponent("user_avatar.jpg")
     }
     
+    private func nutritionRecordsFile(userId: String) -> URL {
+        dataDirectory.appendingPathComponent("nutrition_records_\(userId).json")
+    }
+
+    private static let legacyNutritionRecordsFile = "nutrition_records.json"
+
     private var workoutRecordsFile: URL {
         dataDirectory.appendingPathComponent("workout_records.json")
+    }
+
+    private func nutritionImagesDirectory(userId: String) -> URL {
+        dataDirectory.appendingPathComponent("NutritionImages_\(userId)")
     }
     
     private func createDirectoryIfNeeded(_ url: URL) {
@@ -77,6 +81,10 @@ class LocalStorageManager {
         var weight: Double?
         var targetWeight: Double?
         var dailyCalorieGoal: Double?
+        var restingHeartRate: Int?
+        var healthGoal: String?
+        var useMetric: Bool?
+        var hasCompletedQuestionnaire: Bool?
         var createdAt: Date
         var updatedAt: Date
     }
@@ -116,6 +124,10 @@ class LocalStorageManager {
             weight: profile.weight,
             targetWeight: profile.targetWeight,
             dailyCalorieGoal: profile.dailyCalorieGoal,
+            restingHeartRate: profile.restingHeartRate,
+            healthGoal: profile.healthGoal,
+            useMetric: profile.useMetric,
+            hasCompletedQuestionnaire: profile.hasCompletedQuestionnaire,
             createdAt: profile.createdAt,
             updatedAt: profile.updatedAt
         )
@@ -151,6 +163,10 @@ class LocalStorageManager {
                 weight: local.weight,
                 targetWeight: local.targetWeight,
                 dailyCalorieGoal: local.dailyCalorieGoal,
+                restingHeartRate: local.restingHeartRate,
+                healthGoal: local.healthGoal,
+                useMetric: local.useMetric,
+                hasCompletedQuestionnaire: local.hasCompletedQuestionnaire,
                 createdAt: local.createdAt,
                 updatedAt: local.updatedAt
             )
@@ -164,60 +180,102 @@ class LocalStorageManager {
         }
     }
     
-    // MARK: - 营养记录
-    
-    func saveNutritionRecords(_ records: [LocalNutritionRecord]) {
+    // MARK: - 营养记录（按 userId 分文件存储，切换账号后数据保留）
+
+    func saveNutritionRecords(_ records: [LocalNutritionRecord], userId: String) {
+        guard !userId.isEmpty else { return }
+        createDirectoryIfNeeded(dataDirectory)
+        let fileURL = nutritionRecordsFile(userId: userId)
         do {
             let data = try encoder.encode(records)
-            try data.write(to: nutritionRecordsFile, options: .atomic)
-            print("💾 营养记录已保存到本地文件: \(records.count) 条")
+            try data.write(to: fileURL, options: .atomic)
+            print("💾 营养记录已保存到本地: \(records.count) 条 (userId: \(userId.prefix(8))...)")
         } catch {
             print("❌ 保存营养记录失败: \(error)")
         }
     }
-    
-    func loadNutritionRecords() -> [LocalNutritionRecord] {
-        guard fileManager.fileExists(atPath: nutritionRecordsFile.path) else {
-            print("ℹ️ 本地营养记录文件不存在")
-            return []
+
+    func loadNutritionRecords(userId: String) -> [LocalNutritionRecord] {
+        guard !userId.isEmpty else { return [] }
+        let fileURL = nutritionRecordsFile(userId: userId)
+        if fileManager.fileExists(atPath: fileURL.path) {
+            return loadNutritionRecordsFrom(fileURL: fileURL, userId: userId)
         }
-        
+        let legacyURL = dataDirectory.appendingPathComponent(Self.legacyNutritionRecordsFile)
+        if fileManager.fileExists(atPath: legacyURL.path) {
+            let records = loadNutritionRecordsFrom(fileURL: legacyURL, userId: userId)
+            if !records.isEmpty {
+                saveNutritionRecords(records, userId: userId)
+                try? fileManager.removeItem(at: legacyURL)
+                print("📦 已迁移旧版营养记录到当前账号")
+            }
+            return records
+        }
+        return []
+    }
+
+    private func loadNutritionRecordsFrom(fileURL: URL, userId: String) -> [LocalNutritionRecord] {
         do {
-            let data = try Data(contentsOf: nutritionRecordsFile)
+            let data = try Data(contentsOf: fileURL)
             let records = try decoder.decode([LocalNutritionRecord].self, from: data)
-            print("✅ 从本地文件加载营养记录成功: \(records.count) 条")
+            print("✅ 从本地加载营养记录: \(records.count) 条")
             return records
         } catch {
-            print("❌ 解析本地营养记录失败: \(error)")
+            print("❌ 解析营养记录失败: \(error)")
             return []
         }
     }
-    
-    /// 保存图片到本地文件系统，返回文件名
-    func saveNutritionImage(_ image: UIImage, id: String) -> String? {
+
+    /// 保存图片到本地（按 userId 分目录）
+    func saveNutritionImage(_ image: UIImage, id: String, userId: String) -> String? {
+        guard !userId.isEmpty else { return nil }
+        let dir = nutritionImagesDirectory(userId: userId)
+        createDirectoryIfNeeded(dir)
         let fileName = "\(id).jpg"
-        let fileURL = nutritionImagesDirectory.appendingPathComponent(fileName)
-        
+        let fileURL = dir.appendingPathComponent(fileName)
+
         guard let data = image.jpegData(compressionQuality: 0.7) else {
             print("❌ 图片压缩失败")
             return nil
         }
-        
+
         do {
             try data.write(to: fileURL, options: .atomic)
-            print("💾 图片已保存到本地: \(fileName) (\(data.count / 1024) KB)")
+            print("💾 图片已保存到本地: \(fileName)")
             return fileName
         } catch {
             print("❌ 保存图片失败: \(error)")
             return nil
         }
     }
-    
-    /// 从本地文件系统加载图片
-    func loadNutritionImage(fileName: String) -> UIImage? {
-        let fileURL = nutritionImagesDirectory.appendingPathComponent(fileName)
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
-        return UIImage(data: data)
+
+    /// 从本地加载图片（按 userId 分目录，兼容旧版路径）
+    func loadNutritionImage(fileName: String, userId: String) -> UIImage? {
+        guard !fileName.isEmpty else { return nil }
+        // 1. 优先从 per-user 目录加载
+        if !userId.isEmpty {
+            let fileURL = nutritionImagesDirectory(userId: userId).appendingPathComponent(fileName)
+            if let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
+                return img
+            }
+        }
+        // 2. 回退到旧版路径 Documents/NutritionImages 或 AuraData/NutritionImages（迁移前存储位置）
+        for legacyDir in [
+            documentsDirectory.appendingPathComponent("NutritionImages", isDirectory: true),
+            dataDirectory.appendingPathComponent("NutritionImages", isDirectory: true)
+        ] {
+            let legacyURL = legacyDir.appendingPathComponent(fileName)
+            if fileManager.fileExists(atPath: legacyURL.path),
+               let data = try? Data(contentsOf: legacyURL),
+               let img = UIImage(data: data) {
+                if !userId.isEmpty {
+                    let id = (fileName as NSString).deletingPathExtension
+                    _ = saveNutritionImage(img, id: id, userId: userId)
+                }
+                return img
+            }
+        }
+        return nil
     }
     
     // MARK: - 运动记录
@@ -249,15 +307,33 @@ class LocalStorageManager {
         }
     }
     
-    // MARK: - 清除所有本地数据（退出登录时调用）
-    
+    // MARK: - 用户头像（本地缓存）
+
+    func saveUserAvatar(_ image: UIImage) {
+        guard let data = image.jpegData(compressionQuality: 0.8) else { return }
+        do {
+            try data.write(to: userAvatarFile, options: .atomic)
+            print("💾 用户头像已保存到本地")
+        } catch {
+            print("❌ 保存用户头像失败: \(error)")
+        }
+    }
+
+    func loadUserAvatar() -> UIImage? {
+        guard fileManager.fileExists(atPath: userAvatarFile.path),
+              let data = try? Data(contentsOf: userAvatarFile) else { return nil }
+        return UIImage(data: data)
+    }
+
+    // MARK: - 清除当前账号的会话数据（退出登录时调用）
+    // 注意：营养记录、运动记录按 userId 分文件存储，不在此清除，切换账号后可恢复
+
     func clearAll() {
         try? fileManager.removeItem(at: userProfileFile)
-        try? fileManager.removeItem(at: nutritionRecordsFile)
+        try? fileManager.removeItem(at: userAvatarFile)
         try? fileManager.removeItem(at: workoutRecordsFile)
-        try? fileManager.removeItem(at: nutritionImagesDirectory)
-        createDirectoryIfNeeded(nutritionImagesDirectory)
-        print("🗑️ 已清除所有本地数据")
+        try? fileManager.removeItem(at: dataDirectory.appendingPathComponent(Self.legacyNutritionRecordsFile))
+        print("🗑️ 已清除当前会话数据（营养记录按账号保留）")
     }
     
     // MARK: - 调试：检查本地文件状态
@@ -266,12 +342,12 @@ class LocalStorageManager {
         print("\n========== 📦 本地存储状态 ==========")
         print("数据目录: \(dataDirectory.path)")
         print("用户资料: \(fileManager.fileExists(atPath: userProfileFile.path) ? "✅ 存在" : "❌ 不存在")")
-        print("营养记录: \(fileManager.fileExists(atPath: nutritionRecordsFile.path) ? "✅ 存在" : "❌ 不存在")")
+        let nutritionFiles = (try? fileManager.contentsOfDirectory(atPath: dataDirectory.path))?.filter { $0.hasPrefix("nutrition_records_") } ?? []
+        print("营养记录文件: \(nutritionFiles.count) 个账号")
         print("运动记录: \(fileManager.fileExists(atPath: workoutRecordsFile.path) ? "✅ 存在" : "❌ 不存在")")
         
-        if let contents = try? fileManager.contentsOfDirectory(at: nutritionImagesDirectory, includingPropertiesForKeys: nil) {
-            print("饮食照片: \(contents.count) 张")
-        }
+        let nutritionDirs = (try? fileManager.contentsOfDirectory(atPath: dataDirectory.path))?.filter { $0.hasPrefix("NutritionImages_") } ?? []
+        print("饮食照片目录: \(nutritionDirs.count) 个账号")
         print("====================================\n")
     }
 }

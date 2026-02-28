@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import Combine
 import FirebaseAuth
+import UIKit
 
 @MainActor
 class AuthViewModel: ObservableObject {
@@ -72,6 +73,12 @@ class AuthViewModel: ObservableObject {
     var currentUser: FirebaseAuth.User? {
         firebaseManager.currentUser
     }
+
+    /// 是否需要填写开机问卷（未完成则强制跳转）
+    var needsQuestionnaire: Bool {
+        guard userProfile != nil else { return true }
+        return userProfile?.hasCompletedQuestionnaire != true
+    }
     
     // MARK: - 注册
     
@@ -91,11 +98,18 @@ class AuthViewModel: ObservableObject {
         
         do {
             let user = try await firebaseManager.signUp(email: email, password: password)
-            
+
+            // 更新 Firebase Auth 中的 displayName
+            if let name = displayName, !name.isEmpty {
+                let changeRequest = user.createProfileChangeRequest()
+                changeRequest.displayName = name
+                try await changeRequest.commitChanges()
+            }
+
             // 创建用户配置
             let profile = UserProfile(
                 userId: user.uid,
-                displayName: displayName,
+                displayName: displayName?.isEmpty == true ? nil : displayName,
                 email: email
             )
             
@@ -304,8 +318,29 @@ class AuthViewModel: ObservableObject {
         }
     }
     
+    // MARK: - 头像上传
+
+    func uploadAvatar(_ image: UIImage) async {
+        guard let userId = currentUser?.uid else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            let url = try await firebaseManager.uploadImage(image, path: "avatar.jpg")
+            var profile = userProfile ?? UserProfile(userId: userId, email: currentUser?.email ?? "", createdAt: Date(), updatedAt: Date())
+            profile.avatarURL = url
+            profile.updatedAt = Date()
+            self.userProfile = profile
+            localStorage.saveUserProfile(profile)
+            try await firebaseManager.saveData(collection: "userProfiles", documentId: userId, data: profile)
+            successMessage = "头像已更新"
+        } catch {
+            errorMessage = "头像上传失败: \(error.localizedDescription)"
+        }
+        isLoading = false
+    }
+
     // MARK: - 清除消息
-    
+
     func clearMessages() {
         errorMessage = nil
         successMessage = nil

@@ -108,6 +108,10 @@ struct UserProfile: Codable, Identifiable {
     var weight: Double?           // 体重（千克）
     var targetWeight: Double?     // 目标体重
     var dailyCalorieGoal: Double? // 每日卡路里目标
+    var restingHeartRate: Int?   // 静息心率 BPM
+    var healthGoal: String?      // "weight_loss", "balanced_diet", "build_muscle"
+    var useMetric: Bool?         // true = Metric, false = Imperial
+    var hasCompletedQuestionnaire: Bool?  // 是否完成开机问卷
     var createdAt: Date
     var updatedAt: Date
     
@@ -122,6 +126,10 @@ struct UserProfile: Codable, Identifiable {
          weight: Double? = nil,
          targetWeight: Double? = nil,
          dailyCalorieGoal: Double? = nil,
+         restingHeartRate: Int? = nil,
+         healthGoal: String? = nil,
+         useMetric: Bool? = nil,
+         hasCompletedQuestionnaire: Bool? = nil,
          createdAt: Date = Date(),
          updatedAt: Date = Date()) {
         self.id = id
@@ -135,6 +143,10 @@ struct UserProfile: Codable, Identifiable {
         self.weight = weight
         self.targetWeight = targetWeight
         self.dailyCalorieGoal = dailyCalorieGoal
+        self.restingHeartRate = restingHeartRate
+        self.healthGoal = healthGoal
+        self.useMetric = useMetric
+        self.hasCompletedQuestionnaire = hasCompletedQuestionnaire
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

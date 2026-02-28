@@ -9,6 +9,7 @@ import SwiftUI
 import PhotosUI
 
 struct NutritionAnalysisView: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var viewModel = NutritionViewModel()
     @State private var showingImagePicker = false
     @State private var showingCamera = false
@@ -69,7 +70,10 @@ struct NutritionAnalysisView: View {
                     FoodRecordView(viewModel: viewModel, isPresented: $showingFoodRecord)
                 }
             }
-            .task { await viewModel.syncHistoryFromCloud() }
+            .task {
+                viewModel.ensureLocalDataLoaded()
+                await viewModel.syncHistoryFromCloud()
+            }
             .sheet(isPresented: $showingDietReport) {
                 DietStructureReportView(history: viewModel.history)
             }
@@ -81,10 +85,7 @@ struct NutritionAnalysisView: View {
     private var headerSection: some View {
         HStack(alignment: .center) {
             NavigationLink(destination: UserProfileView()) {
-                Circle()
-                    .fill(Color(white: 0.92))
-                    .frame(width: 44, height: 44)
-                    .overlay(Image(systemName: "person.fill").font(.title3).foregroundColor(Color.auraGrayLight))
+                ProfileHeaderAvatarView(size: 44)
             }
             .buttonStyle(.plain)
             Spacer()
@@ -173,7 +174,7 @@ struct NutritionAnalysisView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(records) { item in
-                        NavigationLink(destination: RecordDetailView(item: item, viewModel: viewModel)) {
+                        NavigationLink(destination: EditMealView(item: item, viewModel: viewModel)) {
                             FoodLogEntryCard(item: item)
                         }
                         .buttonStyle(.plain)
@@ -219,7 +220,6 @@ struct FoodLogDayPills: View {
             HStack(spacing: 10) {
                 ForEach(dayItems, id: \.0) { date, label in
                     let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
-                    let hasRecord = recordDates.contains(dayFormatter.string(from: date))
                     Button {
                         selectedDate = date
                     } label: {
@@ -1107,7 +1107,7 @@ struct EditFoodRecordSheet: View {
         guard let cal = Int(caloriesText), cal > 0 else { return }
         isSaving = true
         Task {
-            await viewModel.updateHistoryItem(item, foodName: foodName.trimmingCharacters(in: .whitespacesAndNewlines), calories: cal)
+            await viewModel.updateHistoryItem(item, foodName: foodName.trimmingCharacters(in: .whitespacesAndNewlines), calories: cal, protein: item.result.protein, carbs: item.result.carbs, fat: item.result.fat)
             await MainActor.run {
                 isSaving = false
                 isPresented = false

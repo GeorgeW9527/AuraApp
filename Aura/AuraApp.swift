@@ -21,8 +21,13 @@ struct AuraApp: App {
     var body: some Scene {
         WindowGroup {
             if authViewModel.isAuthenticated {
-                ContentView()
-                    .environmentObject(authViewModel)
+                if authViewModel.needsQuestionnaire {
+                    HealthProfileQuestionnaireView()
+                        .environmentObject(authViewModel)
+                } else {
+                    ContentView()
+                        .environmentObject(authViewModel)
+                }
             } else {
                 AuthView()
                     .environmentObject(authViewModel)

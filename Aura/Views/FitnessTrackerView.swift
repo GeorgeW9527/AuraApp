@@ -148,10 +148,7 @@ struct FitnessTrackerView: View {
     private var headerSection: some View {
         HStack(alignment: .center) {
             NavigationLink(destination: UserProfileView()) {
-                Circle()
-                    .fill(Color(white: 0.92))
-                    .frame(width: 44, height: 44)
-                    .overlay(Image(systemName: "person.fill").font(.title3).foregroundColor(Color.auraGrayLight))
+                ProfileHeaderAvatarView(size: 44)
             }
             .buttonStyle(.plain)
             Spacer()
