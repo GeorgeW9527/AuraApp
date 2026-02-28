@@ -14,40 +14,33 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             DailyDashboardView()
                 .tabItem {
-                    Image(systemName: "chart.bar.fill")
-                    Text("仪表盘")
+                    Image(systemName: "house.fill")
+                    Text("Home")
                 }
                 .tag(0)
             
             NutritionAnalysisView()
                 .tabItem {
-                    Image(systemName: "camera.fill")
-                    Text("营养分析")
+                    Image(systemName: "fork.knife")
+                    Text("Nutrition")
                 }
                 .tag(1)
             
             FitnessTrackerView()
                 .tabItem {
-                    Image(systemName: "figure.run")
-                    Text("运动追踪")
+                    Image(systemName: "dumbbell.fill")
+                    Text("Activity")
                 }
                 .tag(2)
             
-            DeviceManagementView()
+            AIAdviceView()
                 .tabItem {
-                    Image(systemName: "applewatch")
-                    Text("设备管理")
+                    Image(systemName: "sparkles")
+                    Text("AI Advice")
                 }
                 .tag(3)
-            
-            UserProfileView()
-                .tabItem {
-                    Image(systemName: "person.fill")
-                    Text("用户中心")
-                }
-                .tag(4)
         }
-        .tint(.blue)
+        .tint(Color.auraGreen)
     }
 }
 
