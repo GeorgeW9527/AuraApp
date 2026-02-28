@@ -30,16 +30,14 @@ struct AIAdviceView: View {
     @State private var inputText = ""
     @State private var messages: [ChatMessage] = [
         ChatMessage(
-            text: "Hello! I've analyzed your health data for the last 24 hours. You're doing great with your fiber intake, but I noticed your sleep quality was slightly lower than usual. Would you like some tips for a better night's rest?",
+            text: "Hello! I'm your Aura health assistant. I can help with nutrition, exercise, sleep, and general wellness. What would you like to know?",
             isUser: false,
-            timestamp: Calendar.current.date(bySettingHour: 10, minute: 42, second: 0, of: Date()) ?? Date()
-        ),
-        ChatMessage(
-            text: "Yes, please. I've been feeling a bit sluggish this morning too.",
-            isUser: true,
             timestamp: Date()
         )
     ]
+    @State private var isWaitingForAI = false
+    @State private var streamingText = ""
+    @State private var errorMessage: String?
 
     private let insightCards: [InsightCard] = [
         InsightCard(
@@ -182,6 +180,9 @@ struct AIAdviceView: View {
                     aiBubble(msg)
                 }
             }
+            if !streamingText.isEmpty {
+                aiBubble(ChatMessage(text: streamingText + "▌", isUser: false, timestamp: Date()))
+            }
         }
         .padding(.horizontal, 20)
     }
@@ -275,35 +276,86 @@ struct AIAdviceView: View {
                 Button {
                     sendMessage()
                 } label: {
-                    Image(systemName: "paperplane.fill")
-                        .font(.body)
-                        .foregroundColor(.white)
-                        .frame(width: 48, height: 48)
-                        .background(Color.auraGreen)
-                        .clipShape(Circle())
+                    if isWaitingForAI {
+                        ProgressView()
+                            .tint(.white)
+                            .frame(width: 48, height: 48)
+                            .background(Color.auraGreen.opacity(0.7))
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: "paperplane.fill")
+                            .font(.body)
+                            .foregroundColor(.white)
+                            .frame(width: 48, height: 48)
+                            .background(Color.auraGreen)
+                            .clipShape(Circle())
+                    }
                 }
                 .buttonStyle(.plain)
+                .disabled(isWaitingForAI)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
         }
         .background(Color.white)
+        .alert("Error", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
 
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let msg = ChatMessage(text: text, isUser: true, timestamp: Date())
-        messages.append(msg)
+        let userMsg = ChatMessage(text: text, isUser: true, timestamp: Date())
+        messages.append(userMsg)
         inputText = ""
-        // TODO: 调用 AI 接口获取回复，目前添加占位回复
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            messages.append(ChatMessage(
-                text: "I'll help you with that. Based on your health profile, here are some personalized suggestions...",
-                isUser: false,
-                timestamp: Date()
-            ))
+        errorMessage = nil
+        isWaitingForAI = true
+
+        Task {
+            do {
+                streamingText = ""
+                let apiMessages = buildAPIMessages()
+                try await AIChatService.shared.sendChatStream(messages: apiMessages) { chunk in
+                    Task { @MainActor in
+                        streamingText += chunk
+                    }
+                }
+                await MainActor.run {
+                    let fullText = streamingText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !fullText.isEmpty {
+                        messages.append(ChatMessage(text: fullText, isUser: false, timestamp: Date()))
+                    }
+                    streamingText = ""
+                    isWaitingForAI = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    streamingText = ""
+                    isWaitingForAI = false
+                }
+            }
         }
+    }
+
+    private func buildAPIMessages() -> [(role: String, content: String)] {
+        var result: [(role: String, content: String)] = [
+            ("system", """
+                You are the Aura health assistant. Provide concise, practical health and wellness advice.
+                Focus on nutrition, exercise, sleep, and general wellness. Respond in the same language as the user.
+                """)
+        ]
+        let recent = messages.suffix(20)
+        for msg in recent {
+            result.append((msg.isUser ? "user" : "assistant", msg.text))
+        }
+        return result
     }
 }
 
@@ -331,4 +383,5 @@ struct RoundedCornerShape: Shape {
 
 #Preview {
     AIAdviceView()
+        .environmentObject(AuthViewModel())
 }
