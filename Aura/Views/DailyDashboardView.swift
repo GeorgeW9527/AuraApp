@@ -34,18 +34,20 @@ struct DailyDashboardView: View {
     private var displayName: String { authViewModel.userProfile?.displayName ?? "Alex Rivera" }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                headerSection
-                goalInsightSection
-                calorieRingSection
-                activityHistorySection
-                activityCardsSection
-                aiInsightSection
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    headerSection
+                    goalInsightSection
+                    calorieRingSection
+                    activityHistorySection
+                    activityCardsSection
+                    aiInsightSection
+                }
+                .padding(.bottom, 24)
             }
-            .padding(.bottom, 24)
+            .background(Color.white)
         }
-        .background(Color.white)
     }
 
     // MARK: - 顶部：头像 + Health Profile + 设备

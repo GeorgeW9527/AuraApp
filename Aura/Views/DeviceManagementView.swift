@@ -6,502 +6,321 @@
 //
 
 import SwiftUI
-import FirebaseAuth
 
 struct DeviceManagementView: View {
-    @State private var connectedDevices: [HealthDevice] = [
-        HealthDevice(name: "Apple Watch Series 9", type: .smartWatch, isConnected: true, batteryLevel: 85, lastSync: Date()),
-        HealthDevice(name: "智能体重秤", type: .scale, isConnected: true, batteryLevel: 70, lastSync: Date().addingTimeInterval(-3600)),
-        HealthDevice(name: "智能手环", type: .fitnessBand, isConnected: false, batteryLevel: 45, lastSync: Date().addingTimeInterval(-86400))
-    ]
-    
-    @State private var showingAddDevice = false
-    private let firebaseManager = FirebaseManager.shared
-    
+    @Environment(\.dismiss) private var dismiss
+    @State private var autoDeleteAfterSync = true
+    @State private var hapticFeedback = true
+    @State private var batteryLevel = 84
+    @State private var storageAvailable = 2.4
+    @State private var storageTotal = 8.0
+    @State private var showingUnpairAlert = false
+
+    private var storageProgress: Double {
+        guard storageTotal > 0 else { return 0 }
+        return 1 - (storageAvailable / storageTotal)
+    }
+
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Header Stats
-                    HStack(spacing: 15) {
-                        DeviceStatCard(
-                            title: "已连接",
-                            value: "\(connectedDevices.filter { $0.isConnected }.count)",
-                            icon: "checkmark.circle.fill",
-                            color: .green
-                        )
-                        
-                        DeviceStatCard(
-                            title: "设备总数",
-                            value: "\(connectedDevices.count)",
-                            icon: "antenna.radiowaves.left.and.right",
-                            color: .blue
-                        )
-                    }
-                    .padding(.horizontal)
-                    .padding(.top)
-                    
-                    // Connected Devices
-                    VStack(alignment: .leading, spacing: 15) {
-                        HStack {
-                            Text("我的设备")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                showingAddDevice = true
-                            }) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        ForEach(connectedDevices) { device in
-                            DeviceCard(device: device) {
-                                toggleConnection(device: device)
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
-                    
-                    // Sync Info
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("同步信息")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-                        
-                        VStack(spacing: 12) {
-                            SyncInfoRow(
-                                title: "健康数据",
-                                lastSync: "5分钟前",
-                                icon: "heart.fill",
-                                color: .red
-                            )
-                            
-                            SyncInfoRow(
-                                title: "活动数据",
-                                lastSync: "10分钟前",
-                                icon: "figure.run",
-                                color: .green
-                            )
-                            
-                            SyncInfoRow(
-                                title: "睡眠数据",
-                                lastSync: "1小时前",
-                                icon: "moon.fill",
-                                color: .purple
-                            )
-                            
-                            Button(action: {
-                                syncAllDevices()
-                            }) {
-                                HStack {
-                                    Image(systemName: "arrow.triangle.2.circlepath")
-                                    Text("立即同步所有设备")
-                                        .fontWeight(.semibold)
-                                }
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(10)
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                    .padding(.top)
-                    
-                    // Device Tips
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("设备使用提示")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-                        
-                        VStack(spacing: 12) {
-                            TipCard(
-                                icon: "battery.100",
-                                title: "保持设备电量充足",
-                                description: "建议设备电量低于20%时及时充电"
-                            )
-                            
-                            TipCard(
-                                icon: "arrow.clockwise",
-                                title: "定期同步数据",
-                                description: "每天至少同步一次以获取准确的健康数据"
-                            )
-                            
-                            TipCard(
-                                icon: "lock.shield",
-                                title: "保护隐私安全",
-                                description: "所有健康数据均经过加密存储"
-                            )
-                        }
-                        .padding(.horizontal)
-                    }
-                    .padding(.top)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                deviceInfoSection
+                livePreviewSection
+                hardwareStatusSection
+                firmwareSection
+                settingsSection
+                unpairButton
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Color(white: 0.97))
+        .navigationTitle("Device Management")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.body)
+                        .foregroundColor(Color.auraGrayDark)
                 }
-                .padding(.bottom)
-            }
-            .navigationTitle("设备管理")
-            .sheet(isPresented: $showingAddDevice) {
-                AddDeviceView()
-            }
-            .task {
-                await loadCloudDevices()
             }
         }
-    }
-    
-    func toggleConnection(device: HealthDevice) {
-        if let index = connectedDevices.firstIndex(where: { $0.id == device.id }) {
-            connectedDevices[index].isConnected.toggle()
-            let updatedDevice = connectedDevices[index]
-            Task {
-                await saveDeviceToCloud(updatedDevice)
+        .alert("Unpair Device", isPresented: $showingUnpairAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Unpair", role: .destructive) {
+                dismiss()
             }
-        }
-    }
-    
-    func syncAllDevices() {
-        // Simulate sync
-        for index in connectedDevices.indices {
-            if connectedDevices[index].isConnected {
-                connectedDevices[index].lastSync = Date()
-            }
-        }
-        Task {
-            await syncConnectedDevicesToCloud()
+        } message: {
+            Text("Are you sure you want to unpair NutriCam Pro?")
         }
     }
 
-    private func loadCloudDevices() async {
-        guard firebaseManager.currentUser != nil else { return }
+    // MARK: - Device Info（NutriCam Pro + CONNECTED + V1.4.2）
 
-        do {
-            let records = try await firebaseManager.fetchCollection(
-                collection: "devices",
-                as: DeviceInfo.self
-            )
-
-            if records.isEmpty {
-                await bootstrapDefaultDevicesToCloudIfNeeded()
-                return
-            }
-
-            let mapped = records.map { record in
-                HealthDevice(
-                    id: record.id ?? UUID().uuidString,
-                    name: record.deviceName,
-                    type: DeviceType.fromCloudValue(record.deviceType),
-                    isConnected: record.isConnected,
-                    batteryLevel: 80,
-                    lastSync: record.lastSyncTime ?? Date()
-                )
-            }
-
-            self.connectedDevices = mapped
-            print("✅ 已加载 \(mapped.count) 台设备")
-        } catch {
-            print("❌ 加载设备失败: \(error.localizedDescription)")
-        }
-    }
-
-    private func saveDeviceToCloud(_ device: HealthDevice) async {
-        guard let userId = firebaseManager.currentUser?.uid else { return }
-
-        let info = DeviceInfo(
-            id: device.id,
-            deviceType: device.type.cloudValue,
-            deviceName: device.name,
-            deviceModel: device.name,
-            systemVersion: "iOS",
-            isConnected: device.isConnected,
-            lastSyncTime: device.lastSync,
-            userId: userId
-        )
-
-        do {
-            try await firebaseManager.saveData(
-                collection: "devices",
-                documentId: device.id,
-                data: info
-            )
-            print("✅ 设备状态已同步到云端（服务器确认）: \(device.name)")
-        } catch {
-            print("❌ 设备状态同步失败: \(error)")
-            if let nsError = error as NSError?, nsError.code == 7 {
-                print("🔒 PERMISSION_DENIED - 请检查 Firestore 安全规则！")
-            }
-        }
-    }
-
-    private func syncConnectedDevicesToCloud() async {
-        for device in connectedDevices where device.isConnected {
-            await saveDeviceToCloud(device)
-        }
-    }
-
-    private func bootstrapDefaultDevicesToCloudIfNeeded() async {
-        for device in connectedDevices {
-            await saveDeviceToCloud(device)
-        }
-    }
-}
-
-struct DeviceStatCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title)
-                .foregroundColor(color)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(value)
+    private var deviceInfoSection: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("NutriCam Pro")
                     .font(.title)
                     .fontWeight(.bold)
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-}
-
-struct DeviceCard: View {
-    let device: HealthDevice
-    let onToggle: () -> Void
-    
-    var body: some View {
-        HStack(spacing: 15) {
-            // Device Icon
-            Image(systemName: device.type.icon)
-                .font(.title2)
-                .foregroundColor(.white)
-                .frame(width: 60, height: 60)
-                .background(device.isConnected ? Color.blue : Color.gray)
-                .cornerRadius(12)
-            
-            // Device Info
-            VStack(alignment: .leading, spacing: 6) {
-                Text(device.name)
-                    .font(.headline)
-                
-                HStack(spacing: 15) {
-                    // Battery
-                    HStack(spacing: 4) {
-                        Image(systemName: "battery.75")
-                            .font(.caption)
-                        Text("\(device.batteryLevel)%")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.secondary)
-                    
-                    // Last Sync
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.caption)
-                        Text(device.lastSync, style: .relative)
-                            .font(.caption)
-                    }
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.auraGrayDark)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.auraGreen)
+                        .frame(width: 8, height: 8)
+                    Text("CONNECTED")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(Color.auraGreen)
                 }
             }
-            
-            Spacer()
-            
-            // Connection Toggle
-            Toggle("", isOn: Binding(
-                get: { device.isConnected },
-                set: { _ in onToggle() }
-            ))
-            .labelsHidden()
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-}
-
-struct SyncInfoRow: View {
-    let title: String
-    let lastSync: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundColor(color)
-                .frame(width: 30)
-            
-            Text(title)
-                .font(.subheadline)
-            
-            Spacer()
-            
-            Text(lastSync)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Text("V1.4.2")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .fontWeight(.medium)
+                .foregroundColor(Color.auraGrayDark)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.auraGreenLight)
+                .cornerRadius(8)
         }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(10)
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
     }
-}
 
-struct TipCard: View {
-    let icon: String
-    let title: String
-    let description: String
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(.blue)
-                .frame(width: 30)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Text(description)
+    // MARK: - Live Preview
+
+    private var livePreviewSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("LIVE PREVIEW")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.auraGrayLight)
+                Spacer()
+                Text("1080p • 30fps")
+                    .font(.caption)
+                    .foregroundColor(Color.auraGrayDark)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.auraGreenLight)
+                    .cornerRadius(8)
             }
-            
-            Spacer()
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(10)
-    }
-}
+            .padding(.horizontal, 20)
 
-struct AddDeviceView: View {
-    @Environment(\.presentationMode) var presentationMode
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 60))
-                    .foregroundColor(.blue)
-                    .padding()
-                
-                Text("扫描附近设备")
-                    .font(.title2)
+            ZStack(alignment: .topTrailing) {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(white: 0.9))
+                    .frame(height: 220)
+                    .overlay(
+                        Image(systemName: "video.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(Color.auraGrayLight.opacity(0.5))
+                    )
+                Text("LIVE")
+                    .font(.caption2)
                     .fontWeight(.bold)
-                
-                Text("请确保设备已开启蓝牙并处于配对模式")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .padding()
-                
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.auraRed)
+                    .cornerRadius(6)
+                    .padding(12)
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    // MARK: - Hardware Status（Battery + Storage）
+
+    private var hardwareStatusSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("HARDWARE STATUS")
+                .font(.caption)
+                .foregroundColor(Color.auraGrayLight)
+                .padding(.horizontal, 20)
+
+            HStack(spacing: 12) {
+                hardwareCard(
+                    icon: "battery.75",
+                    value: "\(batteryLevel)%",
+                    label: "BATTERY",
+                    progress: Double(batteryLevel) / 100
+                )
+                hardwareCard(
+                    icon: "internaldrive.fill",
+                    value: String(format: "%.1f GB", storageAvailable),
+                    label: "STORAGE AVAILABLE",
+                    progress: storageProgress
+                )
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private func hardwareCard(icon: String, value: String, label: String, progress: Double) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(Color.auraGreen)
                 Spacer()
             }
-            .padding()
-            .navigationTitle("添加设备")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("取消") {
-                        presentationMode.wrappedValue.dismiss()
-                    }
+            Text(value)
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(Color.auraGrayDark)
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(Color.auraGrayLight)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.auraGreen.opacity(0.2))
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.auraGreen)
+                        .frame(width: geo.size.width * CGFloat(min(progress, 1)))
                 }
             }
+            .frame(height: 6)
         }
-    }
-}
-
-// Models
-struct HealthDevice: Identifiable {
-    let id: String
-    let name: String
-    let type: DeviceType
-    var isConnected: Bool
-    var batteryLevel: Int
-    var lastSync: Date
-
-    init(
-        id: String = UUID().uuidString,
-        name: String,
-        type: DeviceType,
-        isConnected: Bool,
-        batteryLevel: Int,
-        lastSync: Date
-    ) {
-        self.id = id
-        self.name = name
-        self.type = type
-        self.isConnected = isConnected
-        self.batteryLevel = batteryLevel
-        self.lastSync = lastSync
-    }
-}
-
-enum DeviceType {
-    case smartWatch
-    case fitnessBand
-    case scale
-    case heartRateMonitor
-    
-    var icon: String {
-        switch self {
-        case .smartWatch: return "applewatch"
-        case .fitnessBand: return "wristwatch"
-        case .scale: return "scalemass"
-        case .heartRateMonitor: return "heart.circle"
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
     }
 
-    var cloudValue: String {
-        switch self {
-        case .smartWatch: return "smart_watch"
-        case .fitnessBand: return "fitness_band"
-        case .scale: return "scale"
-        case .heartRateMonitor: return "heart_rate_monitor"
+    // MARK: - Firmware Update
+
+    private var firmwareSection: some View {
+        HStack(spacing: 14) {
+            Circle()
+                .fill(Color.auraGreen.opacity(0.2))
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Image(systemName: "arrow.clockwise")
+                        .font(.title3)
+                        .foregroundColor(Color.auraGreen)
+                )
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Firmware Update")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color.auraGrayDark)
+                Text("Your device is up to date")
+                    .font(.caption)
+                    .foregroundColor(Color.auraGrayLight)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button("CHECK") {
+                // TODO: 检查固件更新
+            }
+            .font(.caption)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.auraGreen)
+            .cornerRadius(8)
+        }
+        .padding(14)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - Settings
+
+    private var settingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("SETTINGS")
+                .font(.caption)
+                .foregroundColor(Color.auraGrayLight)
+                .padding(.horizontal, 20)
+
+            VStack(spacing: 0) {
+                HStack(spacing: 14) {
+                    Image(systemName: "cloud.fill")
+                        .font(.title3)
+                        .foregroundColor(Color.auraGrayLight)
+                    Text("Auto-delete after sync")
+                        .font(.subheadline)
+                        .foregroundColor(Color.auraGrayDark)
+                    Spacer()
+                    Toggle("", isOn: $autoDeleteAfterSync)
+                        .tint(Color.auraGreen)
+                }
+                .padding(14)
+
+                Divider().padding(.leading, 56)
+
+                HStack(spacing: 14) {
+                    Image(systemName: "iphone.radiowaves.left.and.right")
+                        .font(.title3)
+                        .foregroundColor(Color.auraGrayLight)
+                    Text("Haptic Feedback")
+                        .font(.subheadline)
+                        .foregroundColor(Color.auraGrayDark)
+                    Spacer()
+                    Toggle("", isOn: $hapticFeedback)
+                        .tint(Color.auraGreen)
+                }
+                .padding(14)
+
+                Divider().padding(.leading, 56)
+
+                Button {
+                    // TODO: Reboot
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.title3)
+                            .foregroundColor(Color.auraRed)
+                        Text("Reboot NutriCam")
+                            .font(.subheadline)
+                            .foregroundColor(Color.auraRed)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(Color.auraGrayLight)
+                    }
+                    .padding(14)
+                }
+                .buttonStyle(.plain)
+            }
+            .background(Color.white)
+            .cornerRadius(14)
+            .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+            .padding(.horizontal, 20)
         }
     }
 
-    static func fromCloudValue(_ value: String) -> DeviceType {
-        switch value {
-        case "smart_watch", "Apple Watch":
-            return .smartWatch
-        case "fitness_band", "Fitness Band":
-            return .fitnessBand
-        case "scale", "Scale":
-            return .scale
-        case "heart_rate_monitor", "Heart Rate Monitor":
-            return .heartRateMonitor
-        default:
-            return .smartWatch
+    // MARK: - Unpair Button
+
+    private var unpairButton: some View {
+        Button {
+            showingUnpairAlert = true
+        } label: {
+            Text("UNPAIR DEVICE")
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .foregroundColor(Color.auraGrayDark)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(white: 0.9))
+                .cornerRadius(14)
         }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
     }
 }
 
 #Preview {
-    DeviceManagementView()
+    NavigationStack {
+        DeviceManagementView()
+    }
 }

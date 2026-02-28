@@ -10,258 +10,346 @@ import FirebaseAuth
 
 struct UserProfileView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
-    @State private var userName = "健康达人"
+    @Environment(\.dismiss) private var dismiss
+    @State private var userName = "Alex Rivera"
     @State private var userEmail = "user@aura.com"
     @State private var height = 175
     @State private var weight = 70
     @State private var age = 28
     @State private var gender = "男"
+    @State private var notificationsEnabled = true
+    @State private var useMetric = true
     @State private var showingEditProfile = false
     @State private var showingLogoutAlert = false
     @State private var isSavingProfile = false
-    
-    var bmi: Double {
-        let heightInMeters = Double(height) / 100.0
-        return Double(weight) / (heightInMeters * heightInMeters)
+
+    private var userShortId: String {
+        let uid = authViewModel.currentUser?.uid ?? "0000"
+        let suffix = String(uid.suffix(4))
+        return "AI-\(suffix)"
     }
-    
-    var bmiCategory: String {
-        switch bmi {
-        case ..<18.5: return "偏瘦"
-        case 18.5..<24: return "正常"
-        case 24..<28: return "偏胖"
-        default: return "肥胖"
-        }
-    }
-    
-    var bmiColor: Color {
-        switch bmi {
-        case ..<18.5: return .blue
-        case 18.5..<24: return .green
-        case 24..<28: return .orange
-        default: return .red
-        }
-    }
-    
+
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Profile Header
-                    VStack(spacing: 15) {
-                        // Avatar
-                        ZStack {
-                            Circle()
-                                .fill(LinearGradient(
-                                    colors: [.blue, .purple],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ))
-                                .frame(width: 100, height: 100)
-                            
-                            Text(String(userName.prefix(1)))
-                                .font(.system(size: 40, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                        
-                        Text(userName)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text(userEmail)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        Button(action: {
-                            showingEditProfile = true
-                        }) {
-                            Text("编辑资料")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.blue)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 8)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(20)
-                        }
-                    }
-                    .padding(.top)
-                    
-                    // Health Stats
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("健康数据")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-                        
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
-                            HealthStatCard(title: "身高", value: "\(height)", unit: "cm", icon: "ruler", color: .blue)
-                            HealthStatCard(title: "体重", value: "\(weight)", unit: "kg", icon: "scalemass", color: .green)
-                            HealthStatCard(title: "年龄", value: "\(age)", unit: "岁", icon: "calendar", color: .orange)
-                            HealthStatCard(title: "性别", value: gender, unit: "", icon: "person", color: .purple)
-                        }
-                        .padding(.horizontal)
-                        
-                        // BMI Card
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("BMI 指数")
-                                .font(.headline)
-                            
-                            HStack(alignment: .bottom, spacing: 8) {
-                                Text(String(format: "%.1f", bmi))
-                                    .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(bmiColor)
-                                
-                                Text(bmiCategory)
-                                    .font(.title3)
-                                    .foregroundColor(bmiColor)
-                                    .padding(.bottom, 4)
-                            }
-                            
-                            ProgressView(value: min(max((bmi - 15) / 25, 0), 1))
-                                .tint(bmiColor)
-                            
-                            HStack {
-                                Text("偏瘦")
-                                    .font(.caption)
-                                Spacer()
-                                Text("正常")
-                                    .font(.caption)
-                                Spacer()
-                                Text("偏胖")
-                                    .font(.caption)
-                                Spacer()
-                                Text("肥胖")
-                                    .font(.caption)
-                            }
-                            .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(15)
-                        .padding(.horizontal)
-                    }
-                    
-                    // Achievements
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("成就徽章")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 15) {
-                                AchievementBadge(
-                                    title: "7天连续",
-                                    icon: "flame.fill",
-                                    color: .orange,
-                                    isUnlocked: true
-                                )
-                                
-                                AchievementBadge(
-                                    title: "万步达人",
-                                    icon: "figure.walk",
-                                    color: .green,
-                                    isUnlocked: true
-                                )
-                                
-                                AchievementBadge(
-                                    title: "早睡冠军",
-                                    icon: "moon.stars.fill",
-                                    color: .purple,
-                                    isUnlocked: true
-                                )
-                                
-                                AchievementBadge(
-                                    title: "运动达人",
-                                    icon: "figure.run",
-                                    color: .blue,
-                                    isUnlocked: false
-                                )
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
-                    
-                    // Settings List
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("设置")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-                        
-                        VStack(spacing: 0) {
-                            SettingsRow(icon: "bell.fill", title: "通知设置", color: .orange)
-                            Divider().padding(.leading, 60)
-                            
-                            SettingsRow(icon: "lock.fill", title: "隐私与安全", color: .blue)
-                            Divider().padding(.leading, 60)
-                            
-                            SettingsRow(icon: "chart.bar.fill", title: "数据统计", color: .green)
-                            Divider().padding(.leading, 60)
-                            
-                            SettingsRow(icon: "heart.fill", title: "健康目标", color: .red)
-                            Divider().padding(.leading, 60)
-                            
-                            SettingsRow(icon: "questionmark.circle.fill", title: "帮助与反馈", color: .purple)
-                            Divider().padding(.leading, 60)
-                            
-                            SettingsRow(icon: "info.circle.fill", title: "关于 Aura", color: .gray)
-                        }
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(15)
-                        .padding(.horizontal)
-                    }
-                    
-                    // Logout Button
-                    Button(action: {
-                        showingLogoutAlert = true
-                    }) {
-                        Text("退出登录")
-                            .font(.headline)
-                            .foregroundColor(.red)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .cornerRadius(10)
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom)
+        ScrollView {
+            VStack(spacing: 24) {
+                profileHeader
+                aiHealthScoreCard
+                healthDataSection
+                systemSection
+                supportSection
+                footer
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Color(white: 0.97))
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.body)
+                        .foregroundColor(Color.auraGrayDark)
                 }
             }
-            .navigationTitle("个人中心")
-            .sheet(isPresented: $showingEditProfile) {
-                EditProfileView(
-                    userName: $userName,
-                    height: $height,
-                    weight: $weight,
-                    age: $age,
-                    gender: $gender,
-                    isSaving: $isSavingProfile,
-                    onSave: saveProfile
-                )
+        }
+        .sheet(isPresented: $showingEditProfile) {
+            EditProfileView(
+                userName: $userName,
+                height: $height,
+                weight: $weight,
+                age: $age,
+                gender: $gender,
+                isSaving: $isSavingProfile,
+                onSave: saveProfile
+            )
+        }
+        .alert("Log Out", isPresented: $showingLogoutAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Log Out", role: .destructive) {
+                authViewModel.signOut()
             }
-            .alert("退出登录", isPresented: $showingLogoutAlert) {
-                Button("取消", role: .cancel) {}
-                Button("退出", role: .destructive) {
-                    authViewModel.signOut()
-                }
-            } message: {
-                Text("确定要退出登录吗？")
-            }
-            .task {
-                await authViewModel.loadUserProfile()
-                applyProfileToLocalState()
-            }
-            .onChange(of: authViewModel.userProfile?.updatedAt) {
-                applyProfileToLocalState()
-            }
+        } message: {
+            Text("Are you sure you want to log out?")
+        }
+        .task {
+            await authViewModel.loadUserProfile()
+            applyProfileToLocalState()
+        }
+        .onChange(of: authViewModel.userProfile?.updatedAt) {
+            applyProfileToLocalState()
         }
     }
 
+    // MARK: - Profile Header（头像 + 姓名 + ID）
+
+    private var profileHeader: some View {
+        VStack(spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.orange.opacity(0.8), Color.orange.opacity(0.5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 100, height: 100)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.auraGreen, lineWidth: 2)
+                    )
+                Text(String(userName.prefix(1)))
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundColor(.white)
+                Circle()
+                    .fill(Color.auraGreen)
+                    .frame(width: 14, height: 14)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                    .offset(x: -4, y: -4)
+            }
+            Text(userName)
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(Color.auraGrayDark)
+            Text("ID: \(userShortId)")
+                .font(.caption)
+                .foregroundColor(Color.auraGrayLight)
+        }
+        .padding(.top, 20)
+    }
+
+    // MARK: - AI Health Score Card
+
+    private var aiHealthScoreCard: some View {
+        HStack(alignment: .top, spacing: 14) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.auraGreen.opacity(0.3))
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Image(systemName: "chart.bar.fill")
+                        .font(.title3)
+                        .foregroundColor(Color.auraGreen)
+                )
+            VStack(alignment: .leading, spacing: 6) {
+                Text("AI HEALTH SCORE")
+                    .font(.caption2)
+                    .foregroundColor(Color.auraGreen)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("84 / 100")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(Color.auraGrayDark)
+                    Text("OPTIMAL")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.auraGreen)
+                        .cornerRadius(12)
+                }
+                Text("Updated 2h ago")
+                    .font(.caption2)
+                    .foregroundColor(Color.auraGrayLight)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer()
+        }
+        .padding(16)
+        .background(Color.auraGreenLight)
+        .cornerRadius(14)
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - HEALTH DATA Section
+
+    private var healthDataSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("HEALTH DATA")
+                .font(.caption)
+                .foregroundColor(Color.auraGrayLight)
+                .padding(.horizontal, 20)
+
+            VStack(spacing: 0) {
+                SettingsNavRow(
+                    icon: "person",
+                    iconColor: Color.auraGreen,
+                    title: "Body Profile",
+                    subtitle: "Height, Weight, Biometrics"
+                ) { showingEditProfile = true }
+
+                Divider().padding(.leading, 56)
+
+                SettingsNavRow(
+                    icon: "target",
+                    iconColor: Color.auraGreen,
+                    title: "Goal Settings",
+                    subtitle: "Daily calorie & nutrition targets",
+                    showAIBadge: true
+                ) { /* TODO */ }
+
+                Divider().padding(.leading, 56)
+
+                SettingsNavRow(
+                    icon: "chart.line.uptrend.xyaxis",
+                    iconColor: Color.auraGreen,
+                    title: "Smart Report",
+                    subtitle: "Comprehensive health & nutrition insights"
+                ) { /* TODO */ }
+            }
+            .background(Color.white)
+            .cornerRadius(14)
+            .padding(.horizontal, 20)
+        }
+    }
+
+    // MARK: - SYSTEM Section
+
+    private var systemSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("SYSTEM")
+                .font(.caption)
+                .foregroundColor(Color.auraGrayLight)
+                .padding(.horizontal, 20)
+
+            VStack(spacing: 0) {
+                HStack(spacing: 14) {
+                    SettingsIconView(icon: "bell.fill", color: Color.auraGreen)
+                    Text("Notifications")
+                        .font(.subheadline)
+                        .foregroundColor(Color.auraGrayDark)
+                    Spacer()
+                    Toggle("", isOn: $notificationsEnabled)
+                        .tint(Color.auraGreen)
+                }
+                .padding(14)
+
+                Divider().padding(.leading, 56)
+
+                SettingsNavRow(
+                    icon: "shield.fill",
+                    iconColor: Color.auraGreen,
+                    title: "Privacy & Data",
+                    subtitle: nil
+                ) { /* TODO */ }
+
+                Divider().padding(.leading, 56)
+
+                HStack(spacing: 14) {
+                    SettingsIconView(icon: "ruler", color: Color.auraGreen)
+                    Text("Measurement Units")
+                        .font(.subheadline)
+                        .foregroundColor(Color.auraGrayDark)
+                    Spacer()
+                    HStack(spacing: 0) {
+                        Button { useMetric = true } label: {
+                            Text("Metric")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(useMetric ? Color.auraGrayDark : Color.auraGrayLight)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(useMetric ? Color(white: 0.92) : Color.clear)
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        Button { useMetric = false } label: {
+                            Text("Imperial")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(!useMetric ? Color.auraGrayDark : Color.auraGrayLight)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(!useMetric ? Color(white: 0.92) : Color.clear)
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(2)
+                    .background(Color(white: 0.95))
+                    .cornerRadius(10)
+                }
+                .padding(14)
+            }
+            .background(Color.white)
+            .cornerRadius(14)
+            .padding(.horizontal, 20)
+        }
+    }
+
+    // MARK: - SUPPORT Section
+
+    private var supportSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("SUPPORT")
+                .font(.caption)
+                .foregroundColor(Color.auraGrayLight)
+                .padding(.horizontal, 20)
+
+            VStack(spacing: 0) {
+                SettingsNavRow(
+                    icon: "questionmark.circle",
+                    iconColor: Color.auraGrayLight,
+                    title: "Help Center",
+                    subtitle: nil,
+                    showExternalLink: true
+                ) { /* TODO */ }
+
+                Divider().padding(.leading, 56)
+
+                Button {
+                    showingLogoutAlert = true
+                } label: {
+                    HStack(spacing: 14) {
+                        SettingsIconView(icon: "rectangle.portrait.and.arrow.right", color: Color.auraRed)
+                        Text("Log Out")
+                            .font(.subheadline)
+                            .foregroundColor(Color.auraRed)
+                        Spacer()
+                    }
+                    .padding(14)
+                }
+                .buttonStyle(.plain)
+            }
+            .background(Color.white)
+            .cornerRadius(14)
+            .padding(.horizontal, 20)
+        }
+    }
+
+    // MARK: - Footer
+
+    private var footer: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.title2)
+                    .foregroundColor(Color.auraGreen)
+                Text("Au")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color.auraGrayDark)
+                Text("ra")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color.auraGreen)
+            }
+            .padding(.top, 24)
+            Text("VERSION 2.4.1 (BUILD 882)")
+                .font(.caption2)
+                .foregroundColor(Color.auraGrayLight)
+        }
+    }
+
+    // MARK: - Helpers
+
     private func applyProfileToLocalState() {
         guard let profile = authViewModel.userProfile else { return }
-        userName = profile.displayName ?? "健康达人"
+        userName = profile.displayName ?? "Alex Rivera"
         userEmail = profile.email
         height = Int(profile.height ?? 175)
         weight = Int(profile.weight ?? 70)
@@ -272,11 +360,10 @@ struct UserProfileView: View {
     private func saveProfile() async {
         guard let currentUser = authViewModel.currentUser else { return }
         isSavingProfile = true
-
         let profile = UserProfile(
             id: authViewModel.userProfile?.id,
             userId: currentUser.uid,
-            displayName: userName.isEmpty ? "健康达人" : userName,
+            displayName: userName.isEmpty ? "Alex Rivera" : userName,
             email: authViewModel.userProfile?.email ?? currentUser.email ?? userEmail,
             avatarURL: authViewModel.userProfile?.avatarURL,
             age: age,
@@ -288,104 +375,81 @@ struct UserProfileView: View {
             createdAt: authViewModel.userProfile?.createdAt ?? Date(),
             updatedAt: Date()
         )
-
         await authViewModel.updateUserProfile(profile)
         isSavingProfile = false
     }
 }
 
-struct HealthStatCard: View {
-    let title: String
-    let value: String
-    let unit: String
+// MARK: - Settings Row Components
+
+struct SettingsIconView: View {
     let icon: String
     let color: Color
-    
+
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-            
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                if !unit.isEmpty {
-                    Text(unit)
+        RoundedRectangle(cornerRadius: 8)
+            .fill(color.opacity(0.2))
+            .frame(width: 36, height: 36)
+            .overlay(Image(systemName: icon).font(.subheadline).foregroundColor(color))
+    }
+}
+
+struct SettingsNavRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String?
+    var showAIBadge = false
+    var showExternalLink = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                ZStack(alignment: .topTrailing) {
+                    SettingsIconView(icon: icon, color: iconColor)
+                    if showAIBadge {
+                        Text("AI")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(2)
+                            .background(Color.auraGreen)
+                            .cornerRadius(4)
+                            .offset(x: 4, y: -4)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(Color.auraGrayDark)
+                    if let sub = subtitle {
+                        Text(sub)
+                            .font(.caption)
+                            .foregroundColor(Color.auraGrayLight)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if showExternalLink {
+                    Image(systemName: "arrow.up.right")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.auraGrayLight)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(Color.auraGrayLight)
                 }
             }
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
+            .padding(14)
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
+        .buttonStyle(.plain)
     }
 }
 
-struct AchievementBadge: View {
-    let title: String
-    let icon: String
-    let color: Color
-    let isUnlocked: Bool
-    
-    var body: some View {
-        VStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(isUnlocked ? color : Color.gray.opacity(0.3))
-                    .frame(width: 70, height: 70)
-                
-                Image(systemName: icon)
-                    .font(.title)
-                    .foregroundColor(.white)
-            }
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(isUnlocked ? .primary : .secondary)
-        }
-        .opacity(isUnlocked ? 1.0 : 0.5)
-    }
-}
-
-struct SettingsRow: View {
-    let icon: String
-    let title: String
-    let color: Color
-    
-    var body: some View {
-        Button(action: {}) {
-            HStack(spacing: 15) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundColor(.white)
-                    .frame(width: 35, height: 35)
-                    .background(color)
-                    .cornerRadius(8)
-                
-                Text(title)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-        }
-    }
-}
+// MARK: - Edit Profile（保留原有）
 
 struct EditProfileView: View {
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) private var dismiss
     @Binding var userName: String
     @Binding var height: Int
     @Binding var weight: Int
@@ -393,44 +457,38 @@ struct EditProfileView: View {
     @Binding var gender: String
     @Binding var isSaving: Bool
     let onSave: () async -> Void
-    
+
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("基本信息")) {
-                    TextField("昵称", text: $userName)
-                    
-                    Picker("性别", selection: $gender) {
-                        Text("男").tag("男")
-                        Text("女").tag("女")
+                Section(header: Text("Basic Info")) {
+                    TextField("Name", text: $userName)
+                    Picker("Gender", selection: $gender) {
+                        Text("Male").tag("男")
+                        Text("Female").tag("女")
                     }
-                    
-                    Stepper("年龄: \(age) 岁", value: $age, in: 1...120)
+                    Stepper("Age: \(age)", value: $age, in: 1...120)
                 }
-                
-                Section(header: Text("身体数据")) {
-                    Stepper("身高: \(height) cm", value: $height, in: 100...250)
-                    
-                    Stepper("体重: \(weight) kg", value: $weight, in: 30...200)
+                Section(header: Text("Body Data")) {
+                    Stepper("Height: \(height) cm", value: $height, in: 100...250)
+                    Stepper("Weight: \(weight) kg", value: $weight, in: 30...200)
                 }
             }
-            .navigationTitle("编辑资料")
+            .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        presentationMode.wrappedValue.dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
-                
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
+                    Button("Save") {
                         Task {
                             await onSave()
-                            presentationMode.wrappedValue.dismiss()
+                            dismiss()
                         }
                     }
                     .fontWeight(.semibold)
+                    .foregroundColor(Color.auraGreen)
                     .disabled(isSaving)
                 }
             }
@@ -439,6 +497,8 @@ struct EditProfileView: View {
 }
 
 #Preview {
-    UserProfileView()
-        .environmentObject(AuthViewModel())
+    NavigationStack {
+        UserProfileView()
+            .environmentObject(AuthViewModel())
+    }
 }
