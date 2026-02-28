@@ -14,6 +14,8 @@ extension Color {
     static let auraGrayLight = Color(red: 0.65, green: 0.65, blue: 0.65)
     static let auraGrayDark = Color(red: 0.25, green: 0.25, blue: 0.25)
     static let auraRed = Color(red: 0.9, green: 0.25, blue: 0.25)
+    static let auraYellow = Color(red: 0.99, green: 0.85, blue: 0.21)   // 蛋白质条
+    static let auraPurple = Color(red: 0.58, green: 0.46, blue: 0.80) // 碳水条
 }
 
 struct DailyDashboardView: View {
@@ -311,7 +313,7 @@ struct DailyDashboardView: View {
                     .fontWeight(.medium)
                     .foregroundColor(Color.auraGreen)
             }
-            (Text("You're ") + Text("200 steps ahead").fontWeight(.bold) + Text(" of yesterday! Your protein intake is optimal today. Consider a 15-minute light walk after dinner."))
+            Text("You're **200 steps ahead** of yesterday! Your protein intake is optimal today. Consider a 15-minute light walk after dinner.")
                 .font(.subheadline)
                 .foregroundColor(Color.auraGrayDark)
         }

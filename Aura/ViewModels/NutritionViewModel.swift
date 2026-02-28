@@ -419,7 +419,7 @@ class NutritionViewModel: ObservableObject {
         let itemId = UUID()
         
         // 保存图片到本地文件系统
-        let imageFileName = localStorage.saveNutritionImage(image, id: itemId.uuidString)
+        _ = localStorage.saveNutritionImage(image, id: itemId.uuidString)
         
         let historyItem = NutritionHistoryItem(
             id: itemId,
@@ -690,6 +690,55 @@ class NutritionViewModel: ObservableObject {
         print("✅ 云端同步完成，当前共 \(history.count) 条记录")
     }
     
+    /// 更新单条记录（食物名称、热量）；同步到本地与云端
+    func updateHistoryItem(_ item: NutritionHistoryItem, foodName: String, calories: Int) async {
+        let newResult = NutritionResult(
+            id: item.result.id,
+            foodName: foodName,
+            calories: calories,
+            protein: item.result.protein,
+            carbs: item.result.carbs,
+            fat: item.result.fat,
+            description: item.result.description
+        )
+        let newItem = NutritionHistoryItem(
+            id: item.id,
+            image: item.image,
+            imageURL: item.imageURL,
+            result: newResult,
+            date: item.date,
+            cloudRecordId: item.cloudRecordId
+        )
+        if let index = history.firstIndex(where: { $0.id == item.id }) {
+            history[index] = newItem
+            history.sort { $0.date > $1.date }
+            saveToLocalStorage()
+        }
+        guard let recordId = item.cloudRecordId,
+              let userId = firebaseManager.currentUser?.uid,
+              let cloudRecord = cloudRecords.first(where: { $0.id == recordId }) else { return }
+        let updated = NutritionRecord(
+            id: recordId,
+            foodName: foodName,
+            calories: Double(calories),
+            protein: cloudRecord.protein,
+            carbs: cloudRecord.carbs,
+            fat: cloudRecord.fat,
+            description: cloudRecord.description,
+            imageURL: cloudRecord.imageURL,
+            timestamp: cloudRecord.timestamp,
+            userId: userId
+        )
+        do {
+            try await firebaseManager.saveData(collection: "nutritionRecords", documentId: recordId, data: updated)
+            if let idx = cloudRecords.firstIndex(where: { $0.id == recordId }) {
+                cloudRecords[idx] = updated
+            }
+        } catch {
+            errorMessage = "云端更新失败: \(error.localizedDescription)"
+        }
+    }
+
     /// 删除云端记录
     func deleteCloudRecord(_ record: NutritionRecord) async {
         guard let recordId = record.id else { return }

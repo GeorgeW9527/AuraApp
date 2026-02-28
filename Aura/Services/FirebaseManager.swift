@@ -42,7 +42,7 @@ class FirebaseManager: ObservableObject {
         }
         
         // 监听后续认证状态变化
-        self.auth.addStateDidChangeListener { [weak self] _, user in
+        _ = self.auth.addStateDidChangeListener { [weak self] _, user in
             self?.currentUser = user
             self?.isAuthenticated = user != nil
             print("🔐 认证状态变化: \(user?.email ?? "未登录")")
