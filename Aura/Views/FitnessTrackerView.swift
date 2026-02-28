@@ -9,236 +9,458 @@ import SwiftUI
 import Charts
 import FirebaseAuth
 
+// MARK: - Timeframe
+
+enum ActivityTimeframe: String, CaseIterable {
+    case day = "Day"
+    case week = "Week"
+    case month = "Month"
+}
+
+// MARK: - 24h 图表数据点
+
+struct HourlyCaloriePoint: Identifiable {
+    let id = UUID()
+    let hour: Int
+    let value: Double
+    var timeLabel: String {
+        String(format: "%02d:00", hour)
+    }
+}
+
+// MARK: - AI 识别活动项（展示用）
+
+struct RecognizedActivityItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let subtitle: String
+    let durationMin: Int
+    let matchPercent: Int
+    let iconColor: Color
+    let iconName: String
+}
+
+// MARK: - Main View
+
 struct FitnessTrackerView: View {
-    @State private var selectedWorkout: WorkoutType = .running
-    @State private var duration: Double = 30
-    @State private var isTracking = false
-    @State private var isLoadingCloud = false
+    @EnvironmentObject var authViewModel: AuthViewModel
+    @State private var timeframe: ActivityTimeframe = .day
     @State private var workoutHistory: [WorkoutSession] = []
+    @State private var isLoadingCloud = false
+
     private let firebaseManager = FirebaseManager.shared
     private let localStorage = LocalStorageManager.shared
 
-    private var weeklyWorkouts: [WorkoutSession] {
-        workoutHistory.filter { Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .weekOfYear) }
+    private var calendar: Calendar { Calendar.current }
+
+    /// 当前时间段内的运动记录
+    private var filteredWorkouts: [WorkoutSession] {
+        let now = Date()
+        switch timeframe {
+        case .day:
+            return workoutHistory.filter { calendar.isDate($0.date, inSameDayAs: now) }
+        case .week:
+            return workoutHistory.filter { calendar.isDate($0.date, equalTo: now, toGranularity: .weekOfYear) }
+        case .month:
+            return workoutHistory.filter { calendar.isDate($0.date, equalTo: now, toGranularity: .month) }
+        }
     }
 
-    private var weeklyWorkoutCount: Int {
-        weeklyWorkouts.count
+    private var totalCalories: Int {
+        filteredWorkouts.reduce(0) { $0 + $1.calories }
     }
 
-    private var weeklyDuration: Int {
-        weeklyWorkouts.reduce(0) { $0 + $1.duration }
+    /// 用于图表的 24 小时热量分布（当日）
+    private var hourlyData: [HourlyCaloriePoint] {
+        let dayWorkouts = workoutHistory.filter { calendar.isDate($0.date, inSameDayAs: Date()) }
+        var values = Array(repeating: 0.0, count: 24)
+        for w in dayWorkouts {
+            let h = calendar.component(.hour, from: w.date)
+            if h >= 0 && h < 24 { values[h] += Double(w.calories) }
+        }
+        if values.allSatisfy({ $0 == 0 }) {
+            values = [0, 0, 0, 0, 0, 80, 120, 200, 280, 220, 180, 200, 250, 220, 180, 160, 200, 240, 180, 120, 80, 40, 20, 0]
+        }
+        return values.enumerated().map { HourlyCaloriePoint(hour: $0.offset, value: $0.element) }
     }
 
-    private var weeklyCalories: Int {
-        weeklyWorkouts.reduce(0) { $0 + $1.calories }
+    /// AI 识别出的活动（由最近运动记录映射 + 占位）
+    private var recognizedActivities: [RecognizedActivityItem] {
+        let fromHistory = filteredWorkouts.prefix(2).map { w -> RecognizedActivityItem in
+            let (name, subtitle, iconColor, iconName) = activityDisplay(for: w.type)
+            let match = 80 + (w.duration % 20)
+            return RecognizedActivityItem(
+                name: name,
+                subtitle: subtitle,
+                durationMin: w.duration,
+                matchPercent: match,
+                iconColor: iconColor,
+                iconName: iconName
+            )
+        }
+        if fromHistory.count >= 2 { return Array(fromHistory) }
+        if fromHistory.count == 1 {
+            return fromHistory + [RecognizedActivityItem(
+                name: "Swimming (Laps)",
+                subtitle: "Stroke recognition",
+                durationMin: 20,
+                matchPercent: 82,
+                iconColor: Color(red: 0.2, green: 0.5, blue: 0.9),
+                iconName: "figure.pool.swim"
+            )]
+        }
+        return [
+            RecognizedActivityItem(name: "Outdoor Running", subtitle: "GPS & IMU tracked", durationMin: 45, matchPercent: 98, iconColor: Color.auraGreen, iconName: "figure.run"),
+            RecognizedActivityItem(name: "Swimming (Laps)", subtitle: "Stroke recognition", durationMin: 20, matchPercent: 82, iconColor: Color(red: 0.2, green: 0.5, blue: 0.9), iconName: "figure.pool.swim")
+        ]
     }
-    
+
+    private func activityDisplay(for type: WorkoutType) -> (String, String, Color, String) {
+        switch type {
+        case .running: return ("Outdoor Running", "GPS & IMU tracked", Color.auraGreen, "figure.run")
+        case .swimming: return ("Swimming (Laps)", "Stroke recognition", Color(red: 0.2, green: 0.5, blue: 0.9), "figure.pool.swim")
+        case .cycling: return ("Cycling", "GPS tracked", Color.blue, "bicycle")
+        case .walking: return ("Walking", "Step count", Color.auraGreen, "figure.walk")
+        default: return (type.name, "Tracked", type.color, type.icon)
+        }
+    }
+
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Quick Stats
-                    HStack(spacing: 15) {
-                        QuickStatCard(
-                            title: "本周运动",
-                            value: "\(weeklyWorkoutCount)",
-                            unit: "次",
-                            icon: "figure.run.circle.fill",
-                            color: .green
-                        )
-                        
-                        QuickStatCard(
-                            title: "总时长",
-                            value: "\(weeklyDuration)",
-                            unit: "分钟",
-                            icon: "clock.fill",
-                            color: .blue
-                        )
-                        
-                        QuickStatCard(
-                            title: "消耗",
-                            value: "\(weeklyCalories)",
-                            unit: "kcal",
-                            icon: "flame.fill",
-                            color: .orange
-                        )
+                    headerSection
+                    timeframeSelector
+                    calorieConsumptionCard
+                    aiActivitySection
+                    vitalSignsSection
+                    optimalRecoveryCard
+                }
+                .padding(.bottom, 24)
+            }
+            .background(Color.white)
+            .task { await loadCloudWorkoutHistory() }
+        }
+    }
+
+    // MARK: - Header（与 Tab1/Tab2 一致）
+
+    private var headerSection: some View {
+        HStack(alignment: .center) {
+            NavigationLink(destination: UserProfileView()) {
+                Circle()
+                    .fill(Color(white: 0.92))
+                    .frame(width: 44, height: 44)
+                    .overlay(Image(systemName: "person.fill").font(.title3).foregroundColor(Color.auraGrayLight))
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            VStack(spacing: 2) {
+                Text("Activity Center")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color.auraGreen)
+                Text("LIVE TRACKING")
+                    .font(.caption2)
+                    .foregroundColor(Color.auraGrayLight)
+            }
+            Spacer()
+            NavigationLink(destination: DeviceManagementView()) {
+                Circle()
+                    .fill(Color(white: 0.92))
+                    .frame(width: 44, height: 44)
+                    .overlay(Image(systemName: "applewatch").font(.title3).foregroundColor(Color.auraGrayDark))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+    }
+
+    // MARK: - Day / Week / Month
+
+    private var timeframeSelector: some View {
+        HStack(spacing: 0) {
+            ForEach(ActivityTimeframe.allCases, id: \.self) { option in
+                Button {
+                    timeframe = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(timeframe == option ? Color.auraGrayDark : Color.auraGrayLight)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(timeframe == option ? Color.white : Color(white: 0.94))
+                        .cornerRadius(8)
+                        .shadow(color: timeframe == option ? .black.opacity(0.06) : .clear, radius: 2, x: 0, y: 1)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(Color(white: 0.94))
+        .cornerRadius(10)
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - Calorie Consumption 卡片 + 折线图
+
+    private var calorieConsumptionCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Calorie Consumption")
+                        .font(.caption)
+                        .foregroundColor(Color.auraGrayLight)
+                    Text("\(totalCalories.formatted()) kcal")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(Color.auraGrayDark)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Still Consumption")
+                        .font(.caption)
+                        .foregroundColor(Color.auraGrayLight)
+                    Text("450 kcal")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(Color.auraGrayDark)
+                }
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption2)
+                    Text("12%")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(Color.auraGreen)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(white: 0.92))
+                .cornerRadius(6)
+            }
+
+            Chart(hourlyData) { point in
+                LineMark(
+                    x: .value("Time", point.timeLabel),
+                    y: .value("kcal", point.value)
+                )
+                .foregroundStyle(Color.auraGreen)
+                .interpolationMethod(.catmullRom)
+                AreaMark(
+                    x: .value("Time", point.timeLabel),
+                    y: .value("kcal", point.value)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.auraGreen.opacity(0.4), Color.auraGreen.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.catmullRom)
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: 6)) { _ in
+                    AxisValueLabel()
+                        .foregroundStyle(Color.auraGrayLight)
+                }
+            }
+            .chartYAxis {
+                AxisMarks(values: .automatic) { _ in
+                    AxisGridLine().foregroundStyle(Color.auraGrayLight.opacity(0.3))
+                    AxisValueLabel().foregroundStyle(Color.auraGrayLight)
+                }
+            }
+            .frame(height: 140)
+
+            HStack {
+                Text("00:00")
+                Spacer()
+                Text("06:00")
+                Spacer()
+                Text("12:00")
+                Spacer()
+                Text("18:00")
+                Spacer()
+                Text("23:59")
+            }
+            .font(.caption2)
+            .foregroundColor(Color.auraGrayLight)
+        }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - AI Activity Recognition
+
+    private var aiActivitySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("AI ACTIVITY RECOGNITION")
+                .font(.caption)
+                .foregroundColor(Color.auraGrayLight)
+                .padding(.horizontal, 20)
+
+            ForEach(recognizedActivities) { item in
+                HStack(spacing: 14) {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(item.iconColor.opacity(0.2))
+                        .frame(width: 48, height: 48)
+                        .overlay(Image(systemName: item.iconName).font(.title2).foregroundColor(item.iconColor))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.name)
+                            .font(.headline)
+                            .foregroundColor(Color.auraGrayDark)
+                        Text(item.subtitle)
+                            .font(.caption)
+                            .foregroundColor(Color.auraGrayLight)
                     }
-                    .padding(.horizontal)
-                    .padding(.top)
-                    
-                    // Start Workout Section
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("开始运动")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-                        
-                        VStack(spacing: 20) {
-                            // Workout Type Picker
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(WorkoutType.allCases, id: \.self) { type in
-                                        WorkoutTypeButton(
-                                            type: type,
-                                            isSelected: selectedWorkout == type
-                                        ) {
-                                            selectedWorkout = type
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                            
-                            // Duration Slider
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("时长: \(Int(duration)) 分钟")
-                                    .font(.headline)
-                                
-                                Slider(value: $duration, in: 5...120, step: 5)
-                                    .tint(.green)
-                            }
-                            .padding(.horizontal)
-                            
-                            // Start Button
-                            Button(action: {
-                                startWorkout()
-                            }) {
-                                HStack {
-                                    Image(systemName: isTracking ? "stop.fill" : "play.fill")
-                                    Text(isTracking ? "停止运动" : "开始运动")
-                                        .fontWeight(.semibold)
-                                }
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(isTracking ? Color.red : Color.green)
-                                .cornerRadius(15)
-                            }
-                            .padding(.horizontal)
-                        }
-                        .padding(.vertical)
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(15)
-                        .padding(.horizontal)
-                    }
-                    
-                    // Weekly Chart
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("本周统计")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-                        
-                        VStack {
-                            Chart {
-                                ForEach(getWeeklyData()) { data in
-                                    BarMark(
-                                        x: .value("日期", data.day),
-                                        y: .value("时长", data.duration)
-                                    )
-                                    .foregroundStyle(Color.green.gradient)
-                                    .cornerRadius(4)
-                                }
-                            }
-                            .frame(height: 200)
-                            .padding()
-                        }
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(15)
-                        .padding(.horizontal)
-                    }
-                    
-                    // History
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("运动历史")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
-                        
-                        ForEach(workoutHistory) { workout in
-                            WorkoutHistoryRow(workout: workout)
-                                .padding(.horizontal)
-                        }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("\(item.durationMin) min")
+                            .font(.headline)
+                            .foregroundColor(item.iconColor)
+                        Text("\(item.matchPercent)% Match")
+                            .font(.caption)
+                            .foregroundColor(Color.auraGrayLight)
                     }
                 }
-                .padding(.bottom)
+                .padding(14)
+                .background(Color.white)
+                .cornerRadius(14)
+                .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
             }
-            .navigationTitle("运动追踪")
-            .task {
-                await loadCloudWorkoutHistory()
-            }
-        }
-    }
-    
-    func startWorkout() {
-        isTracking.toggle()
-        
-        if !isTracking {
-            // Save workout
-            let newWorkout = WorkoutSession(
-                type: selectedWorkout,
-                duration: Int(duration),
-                calories: Int(duration * selectedWorkout.caloriesPerMinute),
-                date: Date()
-            )
-            workoutHistory.insert(newWorkout, at: 0)
-            
-            // 立即保存到本地
-            saveWorkoutsToLocal()
-            
-            // 后台同步到 Firebase
-            Task {
-                await saveWorkoutToCloud(newWorkout)
-            }
-        }
-    }
-    
-    func getWeeklyData() -> [WeeklyWorkoutData] {
-        let days = ["日", "一", "二", "三", "四", "五", "六"]
-        var durations = Array(repeating: 0, count: 7)
-
-        for workout in weeklyWorkouts {
-            let weekdayIndex = Calendar.current.component(.weekday, from: workout.date) - 1
-            if weekdayIndex >= 0 && weekdayIndex < durations.count {
-                durations[weekdayIndex] += workout.duration
-            }
-        }
-
-        return zip(days, durations).map { day, duration in
-            WeeklyWorkoutData(day: day, duration: duration)
+            .padding(.horizontal, 20)
         }
     }
 
-    private func saveWorkoutToCloud(_ workout: WorkoutSession) async {
-        guard firebaseManager.currentUser != nil else { return }
+    // MARK: - Vital Signs Monitor
 
-        let record = FitnessRecord(
-            id: workout.id,
-            activityType: workout.type.rawValue,
-            duration: TimeInterval(workout.duration * 60),
-            calories: Double(workout.calories),
-            timestamp: workout.date,
-            userId: firebaseManager.currentUser?.uid ?? ""
+    private var vitalSignsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("VITAL SIGNS MONITOR")
+                .font(.caption)
+                .foregroundColor(Color.auraGrayLight)
+                .padding(.horizontal, 20)
+
+            HStack(spacing: 12) {
+                heartRateCard
+                spo2Card
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private var heartRateCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "heart.fill")
+                    .font(.caption)
+                    .foregroundColor(Color.auraRed)
+                Spacer()
+                Text("HEART RATE")
+                    .font(.caption2)
+                    .foregroundColor(Color.auraGrayLight)
+            }
+            Text("72 bpm")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(Color.auraGrayDark)
+            HStack(spacing: 4) {
+                ForEach(0..<7, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(i == 3 ? Color.auraRed : Color.auraRed.opacity(0.3))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 6)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+    }
+
+    private var spo2Card: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "drop.fill")
+                    .font(.caption)
+                    .foregroundColor(Color(red: 0.2, green: 0.5, blue: 0.9))
+                Spacer()
+                Text("SPO2")
+                    .font(.caption2)
+                    .foregroundColor(Color.auraGrayLight)
+            }
+            Text("94%")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(Color.orange)
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundColor(Color.orange)
+                Text("LOW LEVEL")
+                    .font(.caption2)
+                    .foregroundColor(Color.orange)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.orange.opacity(0.15))
+            .cornerRadius(6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+    }
+
+    // MARK: - Optimal Recovery
+
+    private var optimalRecoveryCard: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .stroke(Color.auraGreen, lineWidth: 4)
+                    .frame(width: 64, height: 64)
+                Text("84")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color.auraGreen)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Optimal Recovery")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color.auraGrayDark)
+                Text("Your body is ready for high-intensity training today based on HRV data.")
+                    .font(.subheadline)
+                    .foregroundColor(Color.auraGrayLight)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer()
+        }
+        .padding(16)
+        .background(Color.auraGreenLight)
+        .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.auraGreen.opacity(0.3), lineWidth: 1)
         )
-
-        do {
-            try await firebaseManager.saveData(
-                collection: "fitnessRecords",
-                documentId: workout.id,
-                data: record
-            )
-            print("✅ 运动记录已同步到云端（服务器确认）: \(workout.id)")
-        } catch {
-            print("❌ 运动记录同步失败: \(error)")
-            if let nsError = error as NSError?, nsError.code == 7 {
-                print("🔒 PERMISSION_DENIED - 请检查 Firestore 安全规则！")
-            }
-        }
+        .padding(.horizontal, 20)
     }
+
+    // MARK: - Data & Sync（保留原有逻辑）
 
     private func loadCloudWorkoutHistory() async {
-        // 1. 先从本地加载（保证有数据显示）
         let localRecords = localStorage.loadWorkoutRecords()
         if !localRecords.isEmpty && workoutHistory.isEmpty {
             workoutHistory = localRecords.map { record in
@@ -250,14 +472,10 @@ struct FitnessTrackerView: View {
                     date: record.date
                 )
             }.sorted(by: { $0.date > $1.date })
-            print("✅ 从本地恢复了 \(workoutHistory.count) 条运动记录")
         }
-        
-        // 2. 后台尝试从 Firebase 同步
         guard firebaseManager.currentUser != nil else { return }
         isLoadingCloud = true
         defer { isLoadingCloud = false }
-
         do {
             let records = try await firebaseManager.fetchCollection(
                 collection: "fitnessRecords",
@@ -273,16 +491,14 @@ struct FitnessTrackerView: View {
                         date: record.timestamp
                     )
                 }
-                self.workoutHistory = mapped.sorted(by: { $0.date > $1.date })
-                // 同步更新本地存储
+                workoutHistory = mapped.sorted(by: { $0.date > $1.date })
                 saveWorkoutsToLocal()
-                print("✅ 从 Firebase 同步了 \(mapped.count) 条运动记录")
             }
         } catch {
-            print("⚠️ Firebase 运动记录同步失败（保留本地数据）: \(error.localizedDescription)")
+            print("⚠️ Firebase 运动记录同步失败: \(error.localizedDescription)")
         }
     }
-    
+
     private func saveWorkoutsToLocal() {
         let localRecords = workoutHistory.map { workout in
             LocalStorageManager.LocalWorkoutRecord(
@@ -297,92 +513,8 @@ struct FitnessTrackerView: View {
     }
 }
 
-struct QuickStatCard: View {
-    let title: String
-    let value: String
-    let unit: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Text(unit)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-}
+// MARK: - Models（保留原有，供同步与 AI 识别映射）
 
-struct WorkoutTypeButton: View {
-    let type: WorkoutType
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: type.icon)
-                    .font(.title2)
-                Text(type.name)
-                    .font(.caption)
-            }
-            .foregroundColor(isSelected ? .white : .primary)
-            .frame(width: 80, height: 80)
-            .background(isSelected ? Color.green : Color(UIColor.tertiarySystemBackground))
-            .cornerRadius(12)
-        }
-    }
-}
-
-struct WorkoutHistoryRow: View {
-    let workout: WorkoutSession
-    
-    var body: some View {
-        HStack(spacing: 15) {
-            Image(systemName: workout.type.icon)
-                .font(.title2)
-                .foregroundColor(workout.type.color)
-                .frame(width: 50, height: 50)
-                .background(workout.type.color.opacity(0.2))
-                .cornerRadius(10)
-            
-            VStack(alignment: .leading, spacing: 5) {
-                Text(workout.type.name)
-                    .font(.headline)
-                Text("\(workout.duration) 分钟 • \(workout.calories) kcal")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            Text(workout.date, style: .date)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(10)
-    }
-}
-
-// Models
 enum WorkoutType: String, CaseIterable {
     case running = "跑步"
     case cycling = "骑行"
@@ -390,9 +522,9 @@ enum WorkoutType: String, CaseIterable {
     case yoga = "瑜伽"
     case strength = "力量训练"
     case walking = "步行"
-    
+
     var name: String { rawValue }
-    
+
     var icon: String {
         switch self {
         case .running: return "figure.run"
@@ -403,18 +535,18 @@ enum WorkoutType: String, CaseIterable {
         case .walking: return "figure.walk"
         }
     }
-    
+
     var color: Color {
         switch self {
-        case .running: return .green
+        case .running: return Color.auraGreen
         case .cycling: return .blue
-        case .swimming: return .cyan
+        case .swimming: return Color(red: 0.2, green: 0.5, blue: 0.9)
         case .yoga: return .purple
-        case .strength: return .red
+        case .strength: return Color.auraRed
         case .walking: return .orange
         }
     }
-    
+
     var caloriesPerMinute: Double {
         switch self {
         case .running: return 8.5
@@ -443,12 +575,7 @@ struct WorkoutSession: Identifiable {
     }
 }
 
-struct WeeklyWorkoutData: Identifiable {
-    let id = UUID()
-    let day: String
-    let duration: Int
-}
-
 #Preview {
     FitnessTrackerView()
+        .environmentObject(AuthViewModel())
 }
