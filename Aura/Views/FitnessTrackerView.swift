@@ -44,6 +44,7 @@ struct RecognizedActivityItem: Identifiable {
 
 struct FitnessTrackerView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var healthDataManager: HealthDataManager
     @State private var timeframe: ActivityTimeframe = .day
     @State private var workoutHistory: [WorkoutSession] = []
     @State private var isLoadingCloud = false
@@ -67,11 +68,87 @@ struct FitnessTrackerView: View {
     }
 
     private var totalCalories: Int {
-        filteredWorkouts.reduce(0) { $0 + $1.calories }
+        switch timeframe {
+        case .day:
+            return max(healthDataManager.todayActiveEnergyBurned, filteredWorkouts.reduce(0) { $0 + $1.calories })
+        case .week, .month:
+            return filteredWorkouts.reduce(0) { $0 + $1.calories }
+        }
+    }
+
+    private var stillCalories: Int {
+        max(healthDataManager.todayBasalEnergyBurned, 0)
+    }
+
+    private var activeVsStillPercent: Int {
+        guard stillCalories > 0 else { return 0 }
+        return Int((Double(totalCalories) / Double(stillCalories) * 100).rounded())
+    }
+
+    private var heartRateText: String {
+        if let heartRate = healthDataManager.latestHeartRate ?? healthDataManager.restingHeartRate {
+            return "\(heartRate) bpm"
+        }
+        return "--"
+    }
+
+    private var spo2Value: Int? {
+        healthDataManager.latestOxygenSaturationPercent
+    }
+
+    private var recoveryScore: Int {
+        var score = 55
+
+        if let spo2 = spo2Value {
+            score += max(-10, min(20, spo2 - 95)) * 2
+        }
+
+        if let resting = healthDataManager.restingHeartRate,
+           let current = healthDataManager.latestHeartRate {
+            let delta = current - resting
+            if delta <= 8 { score += 12 }
+            else if delta <= 15 { score += 6 }
+            else { score -= min(15, delta - 15) }
+        }
+
+        if totalCalories >= 250 && totalCalories <= 900 {
+            score += 8
+        }
+
+        return max(35, min(98, score))
+    }
+
+    private var recoveryTitle: String {
+        switch recoveryScore {
+        case 80...:
+            return "Optimal Recovery"
+        case 65..<80:
+            return "Good Recovery"
+        default:
+            return "Recovery In Progress"
+        }
+    }
+
+    private var recoveryDescription: String {
+        if let spo2 = spo2Value, spo2 < 94 {
+            return "Blood oxygen is slightly below your usual range. Favor light activity and hydration today."
+        }
+        if let resting = healthDataManager.restingHeartRate,
+           let current = healthDataManager.latestHeartRate,
+           current > resting + 15 {
+            return "Your heart rate is elevated versus baseline. A lower-intensity session may be better today."
+        }
+        return "Today's vitals and activity load suggest your body is responding well to training."
     }
 
     /// 用于图表的 24 小时热量分布（当日）
     private var hourlyData: [HourlyCaloriePoint] {
+        if timeframe == .day, healthDataManager.hourlyActiveEnergyBurned.contains(where: { $0 > 0 }) {
+            return healthDataManager.hourlyActiveEnergyBurned.enumerated().map {
+                HourlyCaloriePoint(hour: $0.offset, value: $0.element)
+            }
+        }
+
         let dayWorkouts = workoutHistory.filter { calendar.isDate($0.date, inSameDayAs: Date()) }
         var values = Array(repeating: 0.0, count: 24)
         for w in dayWorkouts {
@@ -139,7 +216,10 @@ struct FitnessTrackerView: View {
                 .padding(.bottom, 24)
             }
             .background(Color.white)
-            .task { await loadCloudWorkoutHistory() }
+        .task {
+            await healthDataManager.refreshIfNeeded()
+            await loadCloudWorkoutHistory()
+        }
         }
     }
 
@@ -220,7 +300,7 @@ struct FitnessTrackerView: View {
                     Text("Still Consumption")
                         .font(.caption)
                         .foregroundColor(Color.auraGrayLight)
-                    Text("450 kcal")
+                    Text("\(stillCalories.formatted()) kcal")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(Color.auraGrayDark)
@@ -228,7 +308,7 @@ struct FitnessTrackerView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.up.right")
                         .font(.caption2)
-                    Text("12%")
+                    Text("\(activeVsStillPercent)%")
                         .font(.caption)
                         .fontWeight(.medium)
                 }
@@ -365,7 +445,7 @@ struct FitnessTrackerView: View {
                     .font(.caption2)
                     .foregroundColor(Color.auraGrayLight)
             }
-            Text("72 bpm")
+            Text(heartRateText)
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(Color.auraGrayDark)
@@ -396,21 +476,21 @@ struct FitnessTrackerView: View {
                     .font(.caption2)
                     .foregroundColor(Color.auraGrayLight)
             }
-            Text("94%")
+            Text(spo2Value.map { "\($0)%" } ?? "--")
                 .font(.title2)
                 .fontWeight(.bold)
-                .foregroundColor(Color.orange)
+                .foregroundColor((spo2Value ?? 0) < 94 ? Color.orange : Color.auraGreen)
             HStack(spacing: 4) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: (spo2Value ?? 0) < 94 ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                     .font(.caption2)
-                    .foregroundColor(Color.orange)
-                Text("LOW LEVEL")
+                    .foregroundColor((spo2Value ?? 0) < 94 ? Color.orange : Color.auraGreen)
+                Text((spo2Value ?? 0) < 94 ? "LOW LEVEL" : "NORMAL")
                     .font(.caption2)
-                    .foregroundColor(Color.orange)
+                    .foregroundColor((spo2Value ?? 0) < 94 ? Color.orange : Color.auraGreen)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.orange.opacity(0.15))
+            .background(((spo2Value ?? 0) < 94 ? Color.orange : Color.auraGreen).opacity(0.15))
             .cornerRadius(6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -428,17 +508,17 @@ struct FitnessTrackerView: View {
                 Circle()
                     .stroke(Color.auraGreen, lineWidth: 4)
                     .frame(width: 64, height: 64)
-                Text("84")
+                Text("\(recoveryScore)")
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(Color.auraGreen)
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text("Optimal Recovery")
+                Text(recoveryTitle)
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(Color.auraGrayDark)
-                Text("Your body is ready for high-intensity training today based on HRV data.")
+                Text(recoveryDescription)
                     .font(.subheadline)
                     .foregroundColor(Color.auraGrayLight)
             }
@@ -575,4 +655,5 @@ struct WorkoutSession: Identifiable {
 #Preview {
     FitnessTrackerView()
         .environmentObject(AuthViewModel())
+        .environmentObject(HealthDataManager())
 }

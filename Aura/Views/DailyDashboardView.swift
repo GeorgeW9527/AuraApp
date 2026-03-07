@@ -6,37 +6,152 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
-// MARK: - Theme (截图配色)
+// MARK: - Theme
 extension Color {
-    static let auraGreen = Color(red: 0.204, green: 0.78, blue: 0.349)      // 主绿色
-    static let auraGreenLight = Color(red: 0.91, green: 0.96, blue: 0.91)  // 浅绿背景
+    // Core brand colors
+    static let auraGreen = Color(red: 0.20, green: 0.78, blue: 0.35)
+    static let auraGreenLight = Color(red: 0.92, green: 0.97, blue: 0.92)
     static let auraGrayLight = Color(red: 0.65, green: 0.65, blue: 0.65)
-    static let auraGrayDark = Color(red: 0.25, green: 0.25, blue: 0.25)
-    static let auraRed = Color(red: 0.9, green: 0.25, blue: 0.25)
-    static let auraYellow = Color(red: 0.99, green: 0.85, blue: 0.21)   // 蛋白质条
-    static let auraPurple = Color(red: 0.58, green: 0.46, blue: 0.80) // 碳水条
+    static let auraGrayDark = Color(red: 0.20, green: 0.23, blue: 0.22)
+    static let auraRed = Color(red: 0.94, green: 0.31, blue: 0.39)
+    static let auraYellow = Color(red: 0.99, green: 0.85, blue: 0.21)
+    static let auraPurple = Color(red: 0.58, green: 0.46, blue: 0.80)
+
+    // Home tab specific accents (match design)
+    static let auraBackground = Color(red: 0.96, green: 0.97, blue: 0.99)
+    static let auraLime = Color(red: 0.90, green: 0.96, blue: 0.63)          // Goal Insight banner
+    static let auraSoftYellow = Color(red: 1.00, green: 0.96, blue: 0.80)    // Steps card
+    static let auraDeepGreen = Color(red: 0.13, green: 0.39, blue: 0.29)     // Heart Rate card
+    static let auraInsightIndigo = Color(red: 0.59, green: 0.69, blue: 0.99) // AI Health Insight
 }
 
 struct DailyDashboardView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
-    @State private var selectedDayIndex: Int = 3
-    @State private var steps = 8432
-    @State private var stepsGoal = 10000
-    @State private var heartRate = 72
-    @State private var intake = 760
-    @State private var intakeGoal = 1220
-    @State private var burned = 1200
-    @State private var burnedGoal = 1800
-    @State private var kcalRemaining = 500
+    @EnvironmentObject var healthDataManager: HealthDataManager
+    @State private var selectedDayIndex: Int = (Calendar.current.component(.weekday, from: Date()) + 5) % 7
 
-    private let weekDays = ["MON 12", "TUE 13", "WED 14", "THU 15", "MON 12", "TUE 13", "WED 14"]
     private var displayName: String { authViewModel.userProfile?.displayName ?? "Alex Rivera" }
+    private let weekdaySymbols = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    private let localStorage = LocalStorageManager.shared
+
+    private var userId: String {
+        authViewModel.currentUser?.uid ?? authViewModel.userProfile?.userId ?? ""
+    }
+
+    private var weekDates: [Date] {
+        let today = Date()
+        let weekday = Calendar.current.component(.weekday, from: today)
+        let mondayOffset = (weekday + 5) % 7
+        let monday = Calendar.current.date(byAdding: .day, value: -mondayOffset, to: today) ?? today
+        return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: monday) }
+    }
+
+    private var selectedWeekDate: Date {
+        weekDates.indices.contains(selectedDayIndex) ? weekDates[selectedDayIndex] : Date()
+    }
+
+    private var monthYearTitle: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        formatter.locale = Locale(identifier: "en_US")
+        return formatter.string(from: selectedWeekDate).uppercased()
+    }
+
+    private var weekdayDates: [Int] {
+        weekDates.map { Calendar.current.component(.day, from: $0) }
+    }
+
+    private var todayNutritionRecords: [LocalStorageManager.LocalNutritionRecord] {
+        guard !userId.isEmpty else { return [] }
+        return localStorage.loadNutritionRecords(userId: userId).filter {
+            Calendar.current.isDate($0.timestamp, inSameDayAs: Date())
+        }
+    }
+
+    private var intake: Int {
+        todayNutritionRecords.reduce(0) { $0 + $1.calories }
+    }
+
+    private var proteinIntake: Double {
+        todayNutritionRecords.reduce(0) { $0 + $1.protein }
+    }
+
+    private var intakeGoal: Int {
+        Int((authViewModel.userProfile?.dailyCalorieGoal ?? 1800).rounded())
+    }
+
+    private var burned: Int {
+        healthDataManager.todayActiveEnergyBurned
+    }
+
+    private var burnedGoal: Int {
+        max(intakeGoal, 1800)
+    }
+
+    private var kcalRemaining: Int {
+        max(0, intakeGoal - intake)
+    }
+
+    private var steps: Int {
+        healthDataManager.todayStepCount
+    }
+
+    private var stepsGoal: Int { 10_000 }
+
+    private var heartRate: Int {
+        healthDataManager.latestHeartRate
+        ?? healthDataManager.restingHeartRate
+        ?? authViewModel.userProfile?.restingHeartRate
+        ?? 0
+    }
+
+    private var heartRateDisplayText: String {
+        heartRate > 0 ? "\(heartRate)" : "--"
+    }
+
+    private var calorieRingProgress: Double {
+        guard intakeGoal > 0 else { return 0 }
+        return min(1, Double(intake) / Double(intakeGoal))
+    }
+
+    private var goalInsightText: String {
+        let remainingSteps = max(0, stepsGoal - steps)
+        if remainingSteps > 0 {
+            return "Keep going, \(remainingSteps.formatted()) steps left to hit today's goal."
+        }
+        if kcalRemaining > 0 {
+            return "Nice work. You still have \(kcalRemaining.formatted()) kcal left today."
+        }
+        return "You've already closed today's move target."
+    }
+
+    private var aiInsightText: String {
+        let stepDelta = steps - healthDataManager.yesterdayStepCount
+        let proteinMessage: String
+        switch proteinIntake {
+        case ..<40:
+            proteinMessage = "Protein intake is still a bit low today."
+        case 40..<90:
+            proteinMessage = "Protein intake is on track today."
+        default:
+            proteinMessage = "Protein intake is strong today."
+        }
+
+        if stepDelta > 0 {
+            return "You're **\(stepDelta.formatted()) steps ahead** of yesterday. \(proteinMessage) Consider a 15-minute light walk after dinner."
+        } else if stepDelta < 0 {
+            return "You're **\(abs(stepDelta).formatted()) steps behind** yesterday. \(proteinMessage) A short evening walk could help close the gap."
+        } else {
+            return "Your activity is matching yesterday so far. \(proteinMessage) Keep the momentum going this evening."
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 18) {
                     headerSection
                     goalInsightSection
                     calorieRingSection
@@ -44,26 +159,36 @@ struct DailyDashboardView: View {
                     activityCardsSection
                     aiInsightSection
                 }
-                .padding(.bottom, 24)
+                .padding(.top, 22)
+                .padding(.bottom, 16)
             }
-            .background(Color.white)
+            .background(HomePalette.contentBackground.ignoresSafeArea())
+        }
+        .task {
+            await healthDataManager.refreshIfNeeded()
         }
     }
 
-    // MARK: - 顶部：头像 + Health Profile + 设备
+    // MARK: - Header
     private var headerSection: some View {
         HStack(alignment: .center) {
             NavigationLink(destination: UserProfileView()) {
                 HStack(spacing: 12) {
-                    ProfileHeaderAvatarView(size: 48)
+                    Circle()
+                        .fill(HomePalette.softIconBackground)
+                        .frame(width: 38, height: 38)
+                        .overlay {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(HomePalette.deepGreen)
+                        }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Health Profile")
-                            .font(.caption)
-                            .foregroundColor(Color.auraGrayLight)
-                        Text(displayName.isEmpty ? "用户" : displayName)
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(Color.auraGrayDark)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(HomePalette.headerSecondaryText)
+                        Text(displayName.isEmpty ? "User" : displayName)
+                            .font(.system(size: 38 * 0.58, weight: .bold))
+                            .foregroundStyle(HomePalette.deepGreen)
                     }
                 }
             }
@@ -71,161 +196,174 @@ struct DailyDashboardView: View {
             Spacer()
             NavigationLink(destination: DeviceManagementView()) {
                 Circle()
-                    .fill(Color(white: 0.92))
-                    .frame(width: 44, height: 44)
+                    .stroke(HomePalette.softIconStroke, lineWidth: 1)
+                    .background(Circle().fill(HomePalette.contentBackground))
+                    .frame(width: 38, height: 38)
                     .overlay(
                         Image(systemName: "applewatch")
-                            .font(.title3)
-                            .foregroundColor(Color.auraGrayDark)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(HomePalette.deepGreen)
                     )
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .padding(.horizontal, 14)
     }
 
-    // MARK: - Goal Insight 横幅
+    // MARK: - Goal Insight
     private var goalInsightSection: some View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Text("Goal Insight")
-                        .font(.subheadline)
-                        .foregroundColor(Color.auraGrayLight)
+                        .font(.system(size: 18 * 0.75, weight: .bold))
+                        .foregroundStyle(HomePalette.goalTitle)
                     Circle()
-                        .fill(Color.auraRed)
+                        .fill(HomePalette.goalDot)
                         .frame(width: 6, height: 6)
                 }
-                Text("Keep going to close your ring today.")
-                    .font(.subheadline)
-                    .foregroundColor(Color.auraGrayDark)
+                Text(goalInsightText)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(HomePalette.goalBody)
             }
             Spacer()
         }
-        .padding(16)
-        .background(Color.auraGreenLight)
-        .cornerRadius(12)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(HomePalette.goalCard)
+        .clipShape(RoundedRectangle(cornerRadius: 15))
+        .padding(.horizontal, 14)
     }
 
-    // MARK: - 热量环 + 剩余 kcal
+    // MARK: - Calorie Ring
     private var calorieRingSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             HStack(spacing: 6) {
                 Circle()
-                    .fill(Color.auraGreen)
+                    .fill(HomePalette.deepGreen)
                     .frame(width: 8, height: 8)
                 Text("Green Zone: Healthy Deficit")
-                    .font(.subheadline)
-                    .foregroundColor(Color.auraGrayDark)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(HomePalette.deepGreen)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.auraGreenLight)
-            .cornerRadius(8)
+            .padding(.vertical, 7)
+            .background(HomePalette.contentBackground)
+            .overlay(
+                Capsule()
+                    .stroke(HomePalette.softIconStroke, lineWidth: 1.5)
+            )
+            .clipShape(Capsule())
 
             ZStack(alignment: .bottom) {
-                CalorieRingView(progress: 0.45)
-                    .frame(width: 220, height: 130)
+                CalorieRingView(progress: calorieRingProgress)
+                    .frame(width: 312, height: 176)
+                    .offset(y: 10)
                 VStack(spacing: 0) {
                     Text("\(kcalRemaining)")
-                        .font(.system(size: 44, weight: .bold))
-                        .foregroundColor(Color.auraGrayDark)
+                        .font(.system(size: 52, weight: .bold))
+                        .foregroundStyle(HomePalette.numberText)
                     Text("kcal remaining")
-                        .font(.subheadline)
-                        .foregroundColor(Color.auraGrayLight)
+                        .font(.system(size: 29 * 0.52, weight: .medium))
+                        .foregroundStyle(HomePalette.secondaryLabel)
                 }
-                .offset(y: -20)
+                .offset(y: -60)
                 Circle()
-                    .fill(Color.auraGreen)
-                    .frame(width: 36, height: 36)
-                    .overlay(Image(systemName: "person.fill").font(.body).foregroundColor(.white))
-                    .offset(y: 38)
+                    .fill(HomePalette.contentBackground)
+                    .frame(width: 52, height: 52)
+                    .overlay {
+                        Circle()
+                            .stroke(HomePalette.deepGreen, lineWidth: 3)
+                    }
+                    .overlay {
+                        Image(systemName: "person")
+                            .font(.system(size: 21, weight: .semibold))
+                            .foregroundStyle(HomePalette.deepGreen)
+                    }
+                    .offset(y: 26)
+                    .zIndex(1)
             }
-            .frame(height: 180)
+            .frame(height: 210)
 
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("INTAKE")
-                        .font(.caption)
-                        .foregroundColor(Color.auraGrayLight)
+                        .font(.system(size: 14 * 0.8, weight: .bold))
+                        .tracking(2)
+                        .foregroundStyle(HomePalette.secondaryLabel)
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text("\(intake)")
-                            .font(.headline)
+                            .font(.system(size: 32 * 0.44, weight: .bold))
                             .fontWeight(.bold)
-                            .foregroundColor(Color.auraGreen)
+                            .foregroundStyle(HomePalette.numberText)
                         Text("/\(intakeGoal)")
-                            .font(.subheadline)
-                            .foregroundColor(Color.auraGrayDark)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(HomePalette.secondaryLabel)
                     }
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("BURNED")
-                        .font(.caption)
-                        .foregroundColor(Color.auraGrayLight)
+                        .font(.system(size: 14 * 0.8, weight: .bold))
+                        .tracking(2)
+                        .foregroundStyle(HomePalette.secondaryLabel)
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text("\(burned.formatted())")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(Color.auraGrayDark)
+                            .font(.system(size: 32 * 0.44, weight: .bold))
+                            .foregroundStyle(HomePalette.numberText)
                         Text("/\(burnedGoal)")
-                            .font(.subheadline)
-                            .foregroundColor(Color.auraGrayDark)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(HomePalette.secondaryLabel)
                     }
                 }
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 26)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 14)
     }
 
-    // MARK: - Activity History + 日期选择
+    // MARK: - Activity History
     private var activityHistorySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("ACTIVITY HISTORY")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
+                Text(monthYearTitle)
+                    .font(.system(size: 12, weight: .bold))
+                    .tracking(2)
+                    .foregroundStyle(HomePalette.secondaryLabel)
                 Spacer()
-                Text("ALL")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(Color.auraGreen)
+                Image(systemName: "calendar")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(HomePalette.iconSoftGreen)
             }
             .padding(.horizontal, 4)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(Array(weekDays.enumerated()), id: \.offset) { index, day in
-                        let isSelected = index == selectedDayIndex
-                        Button {
-                            selectedDayIndex = index
-                        } label: {
-                            Text(day)
-                                .font(.caption)
-                                .fontWeight(isSelected ? .semibold : .regular)
-                                .foregroundColor(isSelected ? Color.auraGrayDark : Color.auraGrayLight)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
-                                .background(isSelected ? Color.auraGreenLight : Color.clear)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(isSelected ? Color.auraGreen : Color.clear, lineWidth: 1.5)
-                                )
-                                .cornerRadius(10)
+            HStack(spacing: 8) {
+                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { index, symbol in
+                    let isSelected = index == selectedDayIndex
+                    Button {
+                        selectedDayIndex = index
+                    } label: {
+                        VStack(spacing: 8) {
+                            Text(symbol)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(isSelected ? HomePalette.calendarTextStrong : HomePalette.calendarText)
+                            Text("\(weekdayDates[index])")
+                                .font(.system(size: 31 * 0.58, weight: .bold))
+                                .foregroundStyle(isSelected ? HomePalette.calendarTextStrong : HomePalette.calendarText)
                         }
-                        .buttonStyle(.plain)
+                        .frame(width: 44, height: 68)
+                        .background(isSelected ? HomePalette.goalCard : Color.clear)
+                        .clipShape(Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, 4)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 14)
     }
 
-    // MARK: - 步数 + 心率 卡片
+    // MARK: - Steps & Heart Rate Cards
     private var activityCardsSection: some View {
         HStack(spacing: 12) {
             stepsCard
@@ -238,62 +376,72 @@ struct DailyDashboardView: View {
         let pct = min(1.0, Double(steps) / Double(stepsGoal))
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
-                Image(systemName: "figure.walk")
-                    .font(.subheadline)
-                    .foregroundColor(Color.auraGreen)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(HomePalette.contentBackground.opacity(0.8))
+                    .frame(width: 30, height: 30)
+                    .overlay {
+                        Image(systemName: "figure.walk.motion")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(HomePalette.iconSoftGreen)
+                    }
                 Text("STEPS")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(HomePalette.secondaryLabel)
             }
             Text("\(steps.formatted())")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(Color.auraGrayDark)
+                .font(.system(size: 39 * 0.8, weight: .bold))
+                .foregroundStyle(HomePalette.numberText)
             Text("\(Int(pct * 100))% of daily goal")
-                .font(.caption)
-                .foregroundColor(Color.auraGreen)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(HomePalette.iconSoftGreen)
             HStack(spacing: 4) {
-                ForEach(0..<4, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(i < 3 ? Color.auraGreenLight : Color.auraGreen)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 4)
+                ForEach(0..<5, id: \.self) { i in
+                    Capsule()
+                        .fill(i < 4 ? HomePalette.progressTrack : HomePalette.contentBackground)
+                        .frame(width: i == 4 ? 18 : 16, height: i == 4 ? 18 : 8)
                 }
             }
+            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color(white: 0.96))
-        .cornerRadius(14)
+        .background(HomePalette.goalCard)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
     private var heartRateCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
-                Image(systemName: "heart.fill")
-                    .font(.subheadline)
-                    .foregroundColor(Color.auraRed)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white.opacity(0.9))
+                    .frame(width: 30, height: 30)
+                    .overlay {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(HomePalette.heartRed)
+                    }
                 Text("HEART RATE")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.92))
             }
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("\(heartRate)")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(Color.auraGrayDark)
+                Text(heartRateDisplayText)
+                    .font(.system(size: 39 * 0.78, weight: .bold))
+                    .foregroundColor(.white)
                 Text("BPM")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.88))
             }
             Text("Normal Resting")
-                .font(.caption)
-                .foregroundColor(Color.auraGrayLight)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.88))
             HeartRateMiniChart()
                 .frame(height: 24)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color(white: 0.96))
-        .cornerRadius(14)
+        .background(HomePalette.deepGreen)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
     // MARK: - AI Health Insight
@@ -302,42 +450,42 @@ struct DailyDashboardView: View {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
                     .font(.subheadline)
-                    .foregroundColor(Color.auraGreen)
+                    .foregroundStyle(HomePalette.deepGreen)
                 Text("AI HEALTH INSIGHT")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(Color.auraGreen)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(HomePalette.deepGreen.opacity(0.95))
             }
-            Text("You're **200 steps ahead** of yesterday! Your protein intake is optimal today. Consider a 15-minute light walk after dinner.")
-                .font(.subheadline)
-                .foregroundColor(Color.auraGrayDark)
+            Text(.init(aiInsightText))
+                .font(.system(size: 29 * 0.55, weight: .medium))
+                .foregroundStyle(HomePalette.deepGreen.opacity(0.9))
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.auraGreenLight)
-        .cornerRadius(12)
-        .padding(.horizontal, 20)
+        .background(HomePalette.aiCard)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .padding(.horizontal, 14)
     }
 }
 
-// MARK: - 半圆热量环
+// MARK: - Calorie Ring Shape
 struct CalorieRingView: View {
     let progress: Double
-    private let lineWidth: CGFloat = 20
+    private let lineWidth: CGFloat = 16
 
     var body: some View {
         GeometryReader { geo in
             let ringSize = min(geo.size.width, geo.size.height * 2) - lineWidth
             let halfHeight = ringSize / 2
             ZStack {
-                ArcShape(startAngle: .degrees(180), endAngle: .degrees(360))
-                    .stroke(Color(white: 0.88), lineWidth: lineWidth)
+                ArcShape(startAngle: .degrees(0), endAngle: .degrees(180))
+                    .stroke(HomePalette.ringTrack, lineWidth: lineWidth)
                     .frame(width: ringSize, height: halfHeight)
-                    .offset(x: (geo.size.width - ringSize) / 2, y: geo.size.height - halfHeight - lineWidth / 2)
-                ArcShape(startAngle: .degrees(180), endAngle: .degrees(180 + 180 * min(progress, 1)))
-                    .stroke(Color.auraGreen, lineWidth: lineWidth)
+                    .offset(x: (geo.size.width - ringSize) / 2, y: lineWidth / 2 + 8)
+
+                ArcShape(startAngle: .degrees(0), endAngle: .degrees(180 * min(progress, 1)))
+                    .stroke(HomePalette.ringAccent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
                     .frame(width: ringSize, height: halfHeight)
-                    .offset(x: (geo.size.width - ringSize) / 2, y: geo.size.height - halfHeight - lineWidth / 2)
+                    .offset(x: (geo.size.width - ringSize) / 2, y: lineWidth / 2 + 8)
             }
         }
     }
@@ -350,13 +498,13 @@ struct ArcShape: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()
         let r = min(rect.width, rect.height * 2) / 2
-        let center = CGPoint(x: rect.midX, y: rect.maxY)
+        let center = CGPoint(x: rect.midX, y: rect.minY)
         p.addArc(center: center, radius: r, startAngle: startAngle, endAngle: endAngle, clockwise: false)
         return p
     }
 }
 
-// MARK: - 心率迷你折线
+// MARK: - Heart Rate Mini Chart
 struct HeartRateMiniChart: View {
     private let points: [CGFloat] = [0.3, 0.5, 0.4, 0.7, 0.5, 0.8, 0.6, 0.5, 0.7, 0.4]
     var body: some View {
@@ -372,14 +520,44 @@ struct HeartRateMiniChart: View {
                     else { path.addLine(to: CGPoint(x: x, y: y)) }
                 }
             }
-            .stroke(Color.auraRed, lineWidth: 2)
+            .stroke(HomePalette.heartRed, lineWidth: 2.5)
         }
     }
+}
+
+private enum HomePalette {
+    static let pageBackground = Color(red: 0.92, green: 0.92, blue: 0.92)
+    static let contentBackground = Color.white
+    static let topTitle = Color(red: 0.82, green: 0.82, blue: 0.82)
+
+    static let deepGreen = Color(red: 0.11, green: 0.39, blue: 0.31)
+    static let numberText = Color(red: 0.16, green: 0.20, blue: 0.30)
+    static let secondaryLabel = Color(red: 0.69, green: 0.68, blue: 0.60)
+    static let headerSecondaryText = Color(red: 0.76, green: 0.72, blue: 0.54)
+
+    static let softIconBackground = Color(red: 0.96, green: 0.96, blue: 0.93)
+    static let softIconStroke = Color(red: 0.92, green: 0.90, blue: 0.84)
+    static let iconSoftGreen = Color(red: 0.43, green: 0.84, blue: 0.45)
+
+    static let goalCard = Color(red: 0.84, green: 0.91, blue: 0.34)
+    static let goalTitle = Color(red: 0.43, green: 0.45, blue: 0.26)
+    static let goalBody = Color(red: 0.29, green: 0.32, blue: 0.20)
+    static let goalDot = Color(red: 1.00, green: 0.39, blue: 0.58)
+
+    static let ringTrack = Color(red: 0.91, green: 0.91, blue: 0.90)
+    static let ringAccent = Color(red: 0.84, green: 0.90, blue: 0.30)
+    static let progressTrack = Color(red: 0.87, green: 0.90, blue: 0.70)
+    static let calendarText = Color(red: 0.78, green: 0.79, blue: 0.80)
+    static let calendarTextStrong = Color(red: 0.63, green: 0.65, blue: 0.67)
+
+    static let heartRed = Color(red: 0.95, green: 0.29, blue: 0.43)
+    static let aiCard = Color(red: 0.54, green: 0.66, blue: 0.95)
 }
 
 #Preview {
     NavigationStack {
         DailyDashboardView()
             .environmentObject(AuthViewModel())
+            .environmentObject(HealthDataManager())
     }
 }

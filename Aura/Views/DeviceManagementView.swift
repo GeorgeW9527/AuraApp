@@ -9,12 +9,22 @@ import SwiftUI
 
 struct DeviceManagementView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var healthDataManager: HealthDataManager
     @State private var autoDeleteAfterSync = true
     @State private var hapticFeedback = true
-    @State private var batteryLevel = 84
-    @State private var storageAvailable = 2.4
-    @State private var storageTotal = 8.0
     @State private var showingUnpairAlert = false
+
+    private var batteryLevel: Int {
+        healthDataManager.batteryLevelPercent ?? 0
+    }
+
+    private var storageAvailable: Double {
+        healthDataManager.storageAvailableGB
+    }
+
+    private var storageTotal: Double {
+        healthDataManager.storageTotalGB
+    }
 
     private var storageProgress: Double {
         guard storageTotal > 0 else { return 0 }
@@ -55,6 +65,9 @@ struct DeviceManagementView: View {
             }
         } message: {
             Text("Are you sure you want to unpair NutriCam Pro?")
+        }
+        .task {
+            await healthDataManager.refreshIfNeeded()
         }
     }
 
@@ -216,7 +229,7 @@ struct DeviceManagementView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Button("CHECK") {
-                // TODO: 检查固件更新
+                // TODO: check firmware update
             }
             .font(.caption)
             .fontWeight(.bold)
@@ -322,5 +335,6 @@ struct DeviceManagementView: View {
 #Preview {
     NavigationStack {
         DeviceManagementView()
+            .environmentObject(HealthDataManager())
     }
 }

@@ -8,8 +8,7 @@
 import SwiftUI
 
 extension Color {
-    static let authGreen = Color(red: 0.204, green: 0.78, blue: 0.349)
-    static let authGreenDark = Color(red: 0.12, green: 0.55, blue: 0.28)
+    static let auraGreenDark = Color(red: 0.12, green: 0.55, blue: 0.28)
 }
 
 struct AuthView: View {
@@ -26,7 +25,7 @@ struct AuthView: View {
         NavigationStack {
             ZStack {
                 LinearGradient(
-                    colors: [Color.authGreen.opacity(0.85), Color.authGreenDark],
+                    colors: [Color.auraGreen.opacity(0.85), Color.auraGreenDark],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -63,7 +62,7 @@ struct AuthView: View {
                     .foregroundColor(.white.opacity(0.9))
             }
             .padding(.top, 60)
-            Text(isLoginMode ? "欢迎回来" : "创建账号")
+            Text(isLoginMode ? "Welcome Back" : "Create Account")
                 .font(.title3)
                 .foregroundColor(.white.opacity(0.95))
         }
@@ -74,24 +73,24 @@ struct AuthView: View {
             if !isLoginMode {
                 AuthTextField(
                     icon: "person.fill",
-                    placeholder: "昵称（建议填写）",
+                    placeholder: "Display Name (optional)",
                     text: $displayName
                 )
             }
 
             AuthTextField(
                 icon: "envelope.fill",
-                placeholder: "邮箱",
+                placeholder: "Email",
                 text: $email,
                 keyboardType: .emailAddress
             )
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
 
-            AuthSecureField(placeholder: "密码（至少6位）", text: $password)
+            AuthSecureField(placeholder: "Password (min 6 chars)", text: $password)
 
             if !isLoginMode {
-                AuthSecureField(placeholder: "确认密码", text: $confirmPassword)
+                AuthSecureField(placeholder: "Confirm Password", text: $confirmPassword)
             }
 
             if let msg = viewModel.errorMessage {
@@ -126,12 +125,12 @@ struct AuthView: View {
                 HStack {
                     if viewModel.isLoading {
                         ProgressView()
-                            .tint(Color.authGreen)
+                            .tint(Color.auraGreen)
                     } else {
-                        Text(isLoginMode ? "登录" : "注册")
+                        Text(isLoginMode ? "Sign In" : "Sign Up")
                             .font(.headline)
                             .fontWeight(.semibold)
-                            .foregroundColor(Color.authGreen)
+                            .foregroundColor(Color.auraGreen)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -146,7 +145,7 @@ struct AuthView: View {
                 Button {
                     showingForgotPassword = true
                 } label: {
-                    Text("忘记密码？")
+                    Text("Forgot Password?")
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.9))
                 }
@@ -163,9 +162,9 @@ struct AuthView: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Text(isLoginMode ? "还没有账号？" : "已有账号？")
+                    Text(isLoginMode ? "Don't have an account?" : "Already have an account?")
                         .foregroundColor(.white.opacity(0.85))
-                    Text(isLoginMode ? "立即注册" : "立即登录")
+                    Text(isLoginMode ? "Sign Up" : "Sign In")
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                 }
@@ -188,7 +187,7 @@ struct AuthView: View {
         } else {
             // 注册
             guard password == confirmPassword else {
-                viewModel.errorMessage = "两次密码输入不一致"
+                viewModel.errorMessage = "Passwords do not match"
                 return
             }
             
@@ -206,7 +205,7 @@ struct AuthView: View {
     
     private func handleForgotPassword() {
         guard !email.isEmpty else {
-            viewModel.errorMessage = "请先输入邮箱地址"
+            viewModel.errorMessage = "Please enter your email address first"
             return
         }
         
@@ -282,7 +281,7 @@ struct ForgotPasswordSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                Text("输入注册时使用的邮箱，我们将发送密码重置链接")
+                Text("Enter the email you used to register and we'll send a password reset link.")
                     .font(.subheadline)
                     .foregroundColor(Color.auraGrayDark)
                     .multilineTextAlignment(.center)
@@ -290,7 +289,7 @@ struct ForgotPasswordSheet: View {
 
                 AuthTextField(
                     icon: "envelope.fill",
-                    placeholder: "邮箱",
+                    placeholder: "Email",
                     text: $inputEmail,
                     keyboardType: .emailAddress
                 )
@@ -302,7 +301,7 @@ struct ForgotPasswordSheet: View {
                     Text(msg).font(.caption).foregroundColor(Color.auraRed)
                 }
                 if let msg = viewModel.successMessage {
-                    Text(msg).font(.caption).foregroundColor(Color.authGreen)
+                    Text(msg).font(.caption).foregroundColor(Color.auraGreen)
                 }
 
                 Button {
@@ -315,12 +314,12 @@ struct ForgotPasswordSheet: View {
                         }
                     }
                 } label: {
-                    Text("发送重置邮件")
+                    Text("Send Reset Email")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.authGreen)
+                        .background(Color.auraGreen)
                         .cornerRadius(14)
                 }
                 .disabled(viewModel.isLoading || inputEmail.isEmpty)
@@ -330,16 +329,16 @@ struct ForgotPasswordSheet: View {
             }
             .padding(.top, 32)
             .background(Color(white: 0.97))
-            .navigationTitle("忘记密码")
+            .navigationTitle("Forgot Password")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("关闭") {
+                    Button("Close") {
                         viewModel.clearMessages()
                         onDismiss()
                         dismiss()
                     }
-                    .foregroundColor(Color.authGreen)
+                    .foregroundColor(Color.auraGreen)
                 }
             }
         }

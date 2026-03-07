@@ -8,6 +8,31 @@
 import SwiftUI
 import PhotosUI
 
+// MARK: - Tab2 Nutrition color scheme (match tab2.png exactly)
+private enum NutritionPalette {
+    // deep forest green — header text, icon, progress bar fill
+    static let deepGreen       = Color(red: 0.11, green: 0.32, blue: 0.22)
+    // calendarHighlight — lime-yellow capsule (same as tab1)
+    static let calendarHighlight = Color(red: 0.84, green: 0.91, blue: 0.34)
+    // card background — very light mint
+    static let cardBg          = Color(red: 0.93, green: 0.97, blue: 0.92)
+    // primary dark text
+    static let primaryText     = Color(red: 0.12, green: 0.16, blue: 0.13)
+    // secondary/grey text
+    static let secondaryText   = Color(red: 0.60, green: 0.62, blue: 0.58)
+    // ON TRACK badge background (deep green — same as deepGreen)
+    static let onTrackBg       = Color(red: 0.11, green: 0.32, blue: 0.22)
+    // Macro progress bars
+    static let proteinBar      = Color(red: 0.11, green: 0.32, blue: 0.22)  // deep green
+    static let carbsBar        = Color(red: 0.75, green: 0.88, blue: 0.30)  // lime-green
+    static let fatBar          = Color(red: 0.48, green: 0.58, blue: 0.82)  // soft blue-purple
+    // kcal accent (lime-green for normal, orange for warning)
+    static let calorieGreen    = Color(red: 0.45, green: 0.70, blue: 0.22)
+    static let warningOrange   = Color(red: 1.00, green: 0.55, blue: 0.20)
+    // badge icon background (lime rounded square)
+    static let badgeLime       = Color(red: 0.70, green: 0.86, blue: 0.28)
+}
+
 struct NutritionAnalysisView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var viewModel = NutritionViewModel()
@@ -16,7 +41,7 @@ struct NutritionAnalysisView: View {
     @State private var showingSourceSelection = false
     @State private var showingFoodRecord = false
     @State private var showingDietReport = false
-    @State private var selectedDate = Date()
+    @State private var selectedDate = Calendar.current.startOfDay(for: Date())
 
     private static let dailyCalGoal = 2200
     private static let dailyProteinGoal = 150.0
@@ -34,29 +59,29 @@ struct NutritionAnalysisView: View {
                     .padding(.bottom, 100)
                 }
                 .refreshable { await viewModel.syncHistoryFromCloud() }
-                .background(Color.white)
+                .background(Color(red: 0.97, green: 0.98, blue: 0.96))
 
-            // 右下角浮动相机按钮
+            // Floating camera button
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
                     Button(action: { showingSourceSelection = true }) {
                         Image(systemName: "camera.fill")
-                            .font(.title2)
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(.white)
-                            .frame(width: 60, height: 60)
-                            .background(Color.auraGreen)
+                            .frame(width: 58, height: 58)
+                            .background(NutritionPalette.deepGreen)
                             .clipShape(Circle())
-                            .shadow(color: Color.auraGreen.opacity(0.4), radius: 8, x: 0, y: 4)
+                            .shadow(color: NutritionPalette.deepGreen.opacity(0.45), radius: 10, x: 0, y: 5)
                     }
-                    .confirmationDialog("记录美食", isPresented: $showingSourceSelection) {
-                        Button("拍照") { showingCamera = true }
-                        Button("从相册选择") { showingImagePicker = true }
-                        Button("取消", role: .cancel) {}
+                    .confirmationDialog("Record Food", isPresented: $showingSourceSelection) {
+                        Button("Take Photo") { showingCamera = true }
+                        Button("Choose from Library") { showingImagePicker = true }
+                        Button("Cancel", role: .cancel) {}
                     }
                     .padding(.trailing, 24)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 28)
                 }
             }
             .sheet(isPresented: $showingCamera) {
@@ -81,73 +106,90 @@ struct NutritionAnalysisView: View {
         }
     }
 
-    // MARK: - 顶部 Header（截图样式）
+    // MARK: - Header
     private var headerSection: some View {
         HStack(alignment: .center) {
             NavigationLink(destination: UserProfileView()) {
-                ProfileHeaderAvatarView(size: 44)
+                Circle()
+                    .fill(Color(red: 0.92, green: 0.94, blue: 0.90))
+                    .frame(width: 42, height: 42)
+                    .overlay {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(NutritionPalette.deepGreen)
+                    }
             }
             .buttonStyle(.plain)
             Spacer()
             VStack(spacing: 2) {
-                Text("Life Audit Log")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(Color.auraGreen)
-                Text("Health & Nutrition")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
+                Text("LIFE AUDIT LOG")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(NutritionPalette.deepGreen)
+                Text("HEALTH & NUTRITION")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(NutritionPalette.secondaryText)
             }
             Spacer()
             NavigationLink(destination: DeviceManagementView()) {
                 Circle()
-                    .fill(Color(white: 0.92))
-                    .frame(width: 44, height: 44)
-                    .overlay(Image(systemName: "applewatch").font(.title3).foregroundColor(Color.auraGrayDark))
+                    .stroke(Color(red: 0.88, green: 0.90, blue: 0.86), lineWidth: 1)
+                    .background(Circle().fill(Color.white))
+                    .frame(width: 42, height: 42)
+                    .overlay(
+                        Image(systemName: "applewatch")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(NutritionPalette.deepGreen)
+                    )
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .padding(.top, 14)
     }
 
     // MARK: - Food Log 主区域
     private var foodLogSection: some View {
         let records = viewModel.recordsForDate(selectedDate)
-        return VStack(alignment: .leading, spacing: 16) {
-            // 标题：Food Log
-            HStack(spacing: 8) {
+        return VStack(alignment: .leading, spacing: 14) {
+
+            // ── "Food Log" title row ─────────────────────────────────
+            HStack(spacing: 10) {
                 Image(systemName: "fork.knife")
-                    .font(.title2)
-                    .foregroundColor(Color.auraGreen)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(NutritionPalette.deepGreen)
                 Text("Food Log")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(Color.auraGrayDark)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(NutritionPalette.primaryText)
             }
             .padding(.horizontal, 20)
+            .padding(.top, 4)
 
-            // 日期行：October 2023 + 日历图标（长按打开饮食结构图）
+            // ── month + calendar icon ────────────────────────────────
             HStack {
-                Text(monthYearString)
-                    .font(.subheadline)
-                    .foregroundColor(Color.auraGrayLight)
+                Text(monthYearString.uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1.5)
+                    .foregroundColor(NutritionPalette.secondaryText)
                 Spacer()
                 Button {
                     showingDietReport = true
                 } label: {
-                    Image(systemName: "calendar")
-                        .font(.title3)
-                        .foregroundColor(Color.auraGreen)
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(NutritionPalette.cardBg)
+                        .frame(width: 34, height: 34)
+                        .overlay(
+                            Image(systemName: "calendar")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(NutritionPalette.deepGreen)
+                        )
                 }
             }
             .padding(.horizontal, 20)
 
-            // 横向日期丸 (MON 12, TUE 13...)
+            // ── Day pills ────────────────────────────────────────────
             FoodLogDayPills(selectedDate: $selectedDate, recordDates: viewModel.recordDateSet)
-                .padding(.horizontal, 20)
 
-            // Daily Goal Progress 卡片
+            // ── Daily Goal Progress card ─────────────────────────────
             DailyGoalProgressCard(
                 records: records,
                 calGoal: Self.dailyCalGoal,
@@ -157,22 +199,27 @@ struct NutritionAnalysisView: View {
             )
             .padding(.horizontal, 20)
 
-            // Logged Today 分隔
-            HStack {
-                Rectangle().fill(Color.auraGrayLight.opacity(0.4)).frame(height: 1)
+            // ── Logged Today divider ─────────────────────────────────
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(NutritionPalette.secondaryText.opacity(0.25))
+                    .frame(height: 1)
                 Text("Logged Today")
                     .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
-                Rectangle().fill(Color.auraGrayLight.opacity(0.4)).frame(height: 1)
+                    .foregroundColor(NutritionPalette.secondaryText)
+                    .fixedSize()
+                Rectangle()
+                    .fill(NutritionPalette.secondaryText.opacity(0.25))
+                    .frame(height: 1)
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 36)
 
-            // 食物记录卡片列表
+            // ── Food record cards ────────────────────────────────────
             if records.isEmpty {
                 EmptyDayView(date: selectedDate)
                     .padding(.vertical, 24)
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     ForEach(records) { item in
                         NavigationLink(destination: EditMealView(item: item, viewModel: viewModel)) {
                             FoodLogEntryCard(item: item)
@@ -193,7 +240,7 @@ struct NutritionAnalysisView: View {
     }
 }
 
-// MARK: - 横向日期丸 (MON 12, TUE 13...)
+// MARK: - Day Pills
 
 struct FoodLogDayPills: View {
     @Binding var selectedDate: Date
@@ -205,8 +252,9 @@ struct FoodLogDayPills: View {
         formatter.dateFormat = "EEE d"
         formatter.locale = Locale(identifier: "en_US")
         var result: [(Date, String)] = []
-        let start = calendar.date(byAdding: .day, value: -14, to: Date()) ?? Date()
-        let end = calendar.date(byAdding: .day, value: 14, to: Date()) ?? Date()
+        let today = calendar.startOfDay(for: Date())
+        let start = calendar.date(byAdding: .day, value: -14, to: today) ?? today
+        let end = calendar.date(byAdding: .day, value: 14, to: today) ?? today
         var current = start
         while current <= end {
             result.append((current, formatter.string(from: current).uppercased()))
@@ -216,32 +264,46 @@ struct FoodLogDayPills: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(dayItems, id: \.0) { date, label in
-                    let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
-                    Button {
-                        selectedDate = date
-                    } label: {
-                        VStack(spacing: 4) {
-                            Text(label.split(separator: " ").first.map(String.init) ?? "")
-                                .font(.caption)
-                                .fontWeight(isSelected ? .semibold : .regular)
-                            Text(label.split(separator: " ").dropFirst().joined())
-                                .font(.caption2)
-                                .fontWeight(isSelected ? .semibold : .regular)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(dayItems, id: \.0) { date, label in
+                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                        let parts = label.split(separator: " ")
+                        let dayName = parts.first.map(String.init) ?? ""
+                        let dayNum  = parts.dropFirst().joined()
+                        Button {
+                            selectedDate = date
+                        } label: {
+                            VStack(spacing: 5) {
+                                Text(dayName)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(isSelected ? NutritionPalette.deepGreen : NutritionPalette.secondaryText)
+                                Text(dayNum)
+                                    .font(.system(size: 17, weight: .bold))
+                                    .foregroundColor(isSelected ? NutritionPalette.primaryText : NutritionPalette.secondaryText)
+                            }
+                            .frame(width: 44, height: 60)
+                            .background(
+                                Capsule()
+                                    .fill(isSelected ? NutritionPalette.calendarHighlight : Color.clear)
+                            )
                         }
-                        .foregroundColor(isSelected ? Color.auraGreen : Color.auraGrayLight)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(isSelected ? Color.auraGreenLight : Color.clear)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(isSelected ? Color.auraGreen : Color.clear, lineWidth: 1.5)
-                        )
-                        .cornerRadius(10)
+                        .buttonStyle(.plain)
+                        .id(calendar.startOfDay(for: date))
                     }
-                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 20)
+            }
+            .onAppear {
+                let todayStart = calendar.startOfDay(for: Date())
+                withAnimation(.easeOut(duration: 0.25)) {
+                    proxy.scrollTo(todayStart, anchor: .center)
+                }
+            }
+            .onChange(of: selectedDate) { _, newValue in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo(newValue, anchor: .center)
                 }
             }
         }
@@ -254,7 +316,7 @@ struct FoodLogDayPills: View {
     }
 }
 
-// MARK: - Daily Goal Progress 卡片（截图样式）
+// MARK: - Daily Goal Progress Card
 
 struct DailyGoalProgressCard: View {
     let records: [NutritionHistoryItem]
@@ -271,43 +333,49 @@ struct DailyGoalProgressCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("DAILY GOAL PROGRESS")
-                .font(.caption)
-                .foregroundColor(Color.auraGrayLight)
-
+            // "DAILY GOAL PROGRESS" + ON TRACK badge
             HStack(alignment: .center) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("\(totalCal.formatted())")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Color.auraGreen)
-                    Text("/ \(calGoal.formatted()) kcal")
-                        .font(.subheadline)
-                        .foregroundColor(Color.auraGrayLight)
-                }
+                Text("DAILY GOAL PROGRESS")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1)
+                    .foregroundColor(NutritionPalette.secondaryText)
                 Spacer()
                 HStack(spacing: 4) {
                     Image(systemName: "bolt.fill")
-                        .font(.caption)
+                        .font(.system(size: 10, weight: .bold))
                     Text("ON TRACK")
-                        .font(.caption)
-                        .fontWeight(.medium)
+                        .font(.system(size: 11, weight: .bold))
                 }
-                .foregroundColor(Color.auraGreen)
-                .padding(.horizontal, 10)
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color.auraGreenLight)
-                .cornerRadius(20)
+                .background(NutritionPalette.onTrackBg)
+                .clipShape(Capsule())
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                MacroProgressRow(label: "PROTEIN", current: totalProtein, goal: proteinGoal, color: Color.auraYellow)
-                MacroProgressRow(label: "CARBS", current: totalCarbs, goal: carbsGoal, color: Color.auraPurple)
-                MacroProgressRow(label: "FATS", current: totalFat, goal: fatGoal, color: Color.auraGreen)
+            // Big calorie number
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(totalCal.formatted())
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(NutritionPalette.deepGreen)
+                Text("/ \(calGoal.formatted()) kcal")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(NutritionPalette.secondaryText)
+            }
+
+            // Macro rows (spacing +80% from original)
+            VStack(alignment: .leading, spacing: 18) {
+                MacroProgressRow(label: "PROTEIN", current: totalProtein, goal: proteinGoal,
+                                 color: NutritionPalette.proteinBar)
+                MacroProgressRow(label: "CARBS",   current: totalCarbs,   goal: carbsGoal,
+                                 color: NutritionPalette.carbsBar)
+                MacroProgressRow(label: "FATS",    current: totalFat,     goal: fatGoal,
+                                 color: NutritionPalette.fatBar)
             }
         }
         .padding(16)
-        .background(Color.auraGreenLight)
-        .cornerRadius(14)
+        .background(NutritionPalette.cardBg)
+        .cornerRadius(16)
     }
 }
 
@@ -319,29 +387,37 @@ struct MacroProgressRow: View {
     private var progress: Double { goal > 0 ? min(1, current / goal) : 0 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(Color.auraGrayLight)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(white: 0.9))
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(color)
-                        .frame(width: geo.size.width * CGFloat(progress))
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.8)
+                    .foregroundColor(NutritionPalette.secondaryText)
+                Spacer()
+                HStack(spacing: 2) {
+                    Text("\(Int(current))g")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(NutritionPalette.deepGreen)
+                    Text("/ \(Int(goal))g")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(NutritionPalette.secondaryText)
                 }
             }
-            .frame(height: 6)
-            Text("\(Int(current))g / \(Int(goal))g")
-                .font(.caption2)
-                .foregroundColor(Color.auraGrayLight)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color(white: 0.88))
+                    Capsule()
+                        .fill(color)
+                        .frame(width: max(0, geo.size.width * CGFloat(progress)))
+                }
+            }
+            .frame(height: 8)
         }
     }
 }
 
-// MARK: - 食物记录卡片（截图样式：圆形图+kcal+标签）
-
+// MARK: - Food Log Entry Card
 struct FoodLogEntryCard: View {
     let item: NutritionHistoryItem
 
@@ -354,7 +430,7 @@ struct FoodLogEntryCard: View {
 
     private var foodTag: String {
         if item.result.protein > 20 && item.result.carbs < 15 { return "Protein Rich" }
-        if item.result.carbs > item.result.protein && item.result.carbs > item.result.fat { return "Carbs" }
+        if item.result.carbs > item.result.protein && item.result.carbs > item.result.fat { return "Veggie Rich" }
         return "Whole Food"
     }
 
@@ -362,7 +438,7 @@ struct FoodLogEntryCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            // 圆形图片 + 右下角图标
+            // ── Thumbnail + bottom-right badge ──────────────────────
             ZStack(alignment: .bottomTrailing) {
                 Group {
                     if let image = item.image {
@@ -373,339 +449,83 @@ struct FoodLogEntryCard: View {
                         AsyncImage(url: url) { phase in
                             switch phase {
                             case .success(let img): img.resizable().scaledToFill()
-                            default: Color(UIColor.secondarySystemBackground)
+                            default: Color(red: 0.93, green: 0.95, blue: 0.91)
                             }
                         }
                     } else {
-                        Color(UIColor.secondarySystemBackground)
-                            .overlay(Image(systemName: "photo").foregroundColor(.secondary))
+                        Color(red: 0.93, green: 0.95, blue: 0.91)
+                            .overlay(
+                                Image(systemName: "fork.knife")
+                                    .foregroundColor(NutritionPalette.deepGreen.opacity(0.4))
+                            )
                     }
                 }
                 .frame(width: 64, height: 64)
-                .clipShape(Circle())
+                .clipShape(RoundedRectangle(cornerRadius: 14))
 
-                if showWarning {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .background(Color.orange)
-                        .clipShape(Circle())
-                        .offset(x: 4, y: 4)
-                } else {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.caption2)
-                        .foregroundColor(.white)
-                        .padding(4)
-                        .background(Color.auraGreen)
-                        .clipShape(Circle())
-                        .offset(x: 4, y: 4)
-                }
+                // Small icon badge (lime rounded-square)
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(showWarning ? NutritionPalette.warningOrange : NutritionPalette.badgeLime)
+                    .frame(width: 22, height: 22)
+                    .overlay(
+                        Image(systemName: showWarning ? "exclamationmark.triangle.fill" : "sparkles")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                    )
+                    .offset(x: 5, y: 5)
             }
             .frame(width: 64, height: 64)
 
-            VStack(alignment: .leading, spacing: 6) {
+            // ── Text content ─────────────────────────────────────────
+            VStack(alignment: .leading, spacing: 5) {
                 Text(item.result.foodName)
-                    .font(.headline)
-                    .foregroundColor(Color.auraGrayDark)
-                HStack(spacing: 4) {
-                    Text("\(item.result.calories) kcal")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(Color.auraGreen)
-                    Text("•")
-                        .foregroundColor(Color.auraGrayLight)
-                    Text(foodTag)
-                        .font(.caption)
-                        .foregroundColor(Color.auraGrayLight)
-                }
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(NutritionPalette.primaryText)
+                    .lineLimit(1)
+
                 HStack(spacing: 6) {
-                    Text("P: \(Int(item.result.protein))g")
-                        .font(.caption2)
-                        .foregroundColor(Color.auraGrayLight)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color(white: 0.95))
-                        .cornerRadius(4)
-                    Text("C: \(Int(item.result.carbs))g")
-                        .font(.caption2)
-                        .foregroundColor(Color.auraGrayLight)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color(white: 0.95))
-                        .cornerRadius(4)
-                    Text("F: \(Int(item.result.fat))g")
-                        .font(.caption2)
-                        .foregroundColor(Color.auraGrayLight)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color(white: 0.95))
-                        .cornerRadius(4)
+                    Text("\(item.result.calories) kcal")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(showWarning ? NutritionPalette.warningOrange : NutritionPalette.calorieGreen)
+                    Text("•")
+                        .foregroundColor(NutritionPalette.secondaryText)
+                    Text(foodTag)
+                        .font(.system(size: 12))
+                        .foregroundColor(NutritionPalette.secondaryText)
+                }
+
+                HStack(spacing: 6) {
+                    macroPill("P: \(Int(item.result.protein))g")
+                    macroPill("C: \(Int(item.result.carbs))g")
+                    macroPill("F: \(Int(item.result.fat))g")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            // ── Time ─────────────────────────────────────────────────
             Text(timeString)
-                .font(.caption)
-                .foregroundColor(Color.auraGrayLight)
+                .font(.system(size: 11))
+                .foregroundColor(NutritionPalette.secondaryText)
+                .padding(.top, 2)
         }
         .padding(14)
         .background(Color.white)
-        .cornerRadius(14)
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
     }
-}
 
-// MARK: - 日历区域（保留供智能报告等使用）
-
-struct CalendarSectionView: View {
-    @Binding var selectedDate: Date
-    let recordDates: Set<String>
-    
-    @State private var currentMonth = Date()
-    
-    private let calendar = Calendar.current
-    private let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy年M月"
-        return f
-    }()
-    
-    private let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            // 月份导航
-            HStack {
-                Button(action: { changeMonth(-1) }) {
-                    Image(systemName: "chevron.left")
-                        .font(.title3)
-                        .foregroundColor(Color.auraGreen)
-                }
-                
-                Spacer()
-                
-                Text(dateFormatter.string(from: currentMonth))
-                    .font(.headline)
-                
-                Spacer()
-                
-                Button(action: { changeMonth(1) }) {
-                    Image(systemName: "chevron.right")
-                        .font(.title3)
-                        .foregroundColor(Color.auraGreen)
-                }
-            }
+    private func macroPill(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(NutritionPalette.secondaryText)
             .padding(.horizontal, 8)
-            
-            // 星期标题
-            let weekdays = ["日", "一", "二", "三", "四", "五", "六"]
-            HStack(spacing: 0) {
-                ForEach(weekdays, id: \.self) { day in
-                    Text(day)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            
-            // 日期网格
-            let days = generateDays()
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 8) {
-                ForEach(days, id: \.self) { date in
-                    if let date = date {
-                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
-                        let isToday = calendar.isDateInToday(date)
-                        let hasRecord = recordDates.contains(dayFormatter.string(from: date))
-                        
-                        Button(action: { selectedDate = date }) {
-                            VStack(spacing: 3) {
-                                Text("\(calendar.component(.day, from: date))")
-                                    .font(.system(size: 16, weight: isSelected ? .bold : .regular))
-                                    .foregroundColor(
-                                        isSelected ? .white :
-                                        isToday ? Color.auraGreen :
-                                        calendar.isDate(date, equalTo: currentMonth, toGranularity: .month) ? .primary : .gray.opacity(0.4)
-                                    )
-                                
-                                // 有记录的日期显示小圆点
-                                Circle()
-                                    .fill(isSelected ? Color.white : Color.auraGreen)
-                                    .frame(width: 5, height: 5)
-                                    .opacity(hasRecord ? 1 : 0)
-                            }
-                            .frame(width: 36, height: 40)
-                            .background {
-                                if isSelected {
-                                    Circle().fill(Color.auraGreen)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        Text("")
-                            .frame(width: 36, height: 40)
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(16)
-        .padding(.horizontal)
-        .padding(.top, 8)
-    }
-    
-    private func changeMonth(_ delta: Int) {
-        if let newDate = calendar.date(byAdding: .month, value: delta, to: currentMonth) {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                currentMonth = newDate
-            }
-        }
-    }
-    
-    private func generateDays() -> [Date?] {
-        guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth) else {
-            return []
-        }
-        
-        let firstDayOfMonth = monthInterval.start
-        let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth) - 1
-        
-        var days: [Date?] = []
-        
-        // 填充月初空白
-        for _ in 0..<firstWeekday {
-            days.append(nil)
-        }
-        
-        // 填充当月日期
-        let range = calendar.range(of: .day, in: .month, for: currentMonth)!
-        for day in range {
-            if let date = calendar.date(bySetting: .day, value: day, of: firstDayOfMonth) {
-                days.append(date)
-            }
-        }
-        
-        return days
+            .padding(.vertical, 4)
+            .background(Color(red: 0.94, green: 0.96, blue: 0.93))
+            .cornerRadius(6)
     }
 }
 
-// MARK: - 每日摘要卡片
-
-struct DailySummaryCard: View {
-    let records: [NutritionHistoryItem]
-    let date: Date
-    
-    private var totalCalories: Int {
-        records.reduce(0) { $0 + $1.result.calories }
-    }
-    
-    private var totalProtein: Double {
-        records.reduce(0) { $0 + $1.result.protein }
-    }
-    
-    private var totalCarbs: Double {
-        records.reduce(0) { $0 + $1.result.carbs }
-    }
-    
-    private var totalFat: Double {
-        records.reduce(0) { $0 + $1.result.fat }
-    }
-    
-    private var dateString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日 EEEE"
-        formatter.locale = Locale(identifier: "zh_CN")
-        return formatter.string(from: date)
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(dateString)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Text("\(records.count) 条记录")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.auraGreen.opacity(0.15))
-                    .cornerRadius(10)
-            }
-            
-            if !records.isEmpty {
-                HStack(spacing: 0) {
-                    // 总卡路里
-                    VStack(spacing: 4) {
-                        Text("\(totalCalories)")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.orange)
-                        Text("千卡")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    
-                    Divider()
-                        .frame(height: 40)
-                    
-                    // 蛋白质
-                    VStack(spacing: 4) {
-                        Text(String(format: "%.1f", totalProtein))
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.red)
-                        Text("蛋白质(g)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    
-                    Divider()
-                        .frame(height: 40)
-                    
-                    // 碳水
-                    VStack(spacing: 4) {
-                        Text(String(format: "%.1f", totalCarbs))
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.blue)
-                        Text("碳水(g)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    
-                    Divider()
-                        .frame(height: 40)
-                    
-                    // 脂肪
-                    VStack(spacing: 4) {
-                        Text(String(format: "%.1f", totalFat))
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.yellow)
-                        Text("脂肪(g)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .padding(.vertical, 8)
-            }
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(16)
-        .padding(.horizontal)
-    }
-}
-
-// MARK: - 空日期视图
+// MARK: - Empty Day View
 
 struct EmptyDayView: View {
     let date: Date
@@ -716,12 +536,12 @@ struct EmptyDayView: View {
                 .font(.system(size: 40))
                 .foregroundColor(.gray.opacity(0.4))
             
-            Text(Calendar.current.isDateInToday(date) ? "今天还没有记录" : "当天没有记录")
+            Text(Calendar.current.isDateInToday(date) ? "No records yet today" : "No records for this day")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             
             if Calendar.current.isDateInToday(date) {
-                Text("点击右下角的相机按钮开始记录")
+                Text("Tap the camera button to start logging")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -731,7 +551,7 @@ struct EmptyDayView: View {
     }
 }
 
-// MARK: - 美食记录页面（拍照后的分析页面）
+// MARK: - Food Record View (post-capture analysis)
 
 struct FoodRecordView: View {
     @ObservedObject var viewModel: NutritionViewModel
@@ -756,7 +576,7 @@ struct FoodRecordView: View {
                         if let image = viewModel.selectedImage {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
-                                    Label("本次拍摄", systemImage: "camera.viewfinder")
+                                    Label("Photo Captured", systemImage: "camera.viewfinder")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundColor(.secondary)
                                     Spacer()
@@ -800,13 +620,13 @@ struct FoodRecordView: View {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .font(.title2)
                                     .foregroundColor(.red)
-                                Text("分析失败")
+                                Text("Analysis Failed")
                                     .font(.headline)
                                 Text(errorMessage)
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
-                                Button("重试分析") {
+                                Button("Retry Analysis") {
                                     viewModel.analyzeImage()
                                 }
                                 .buttonStyle(.borderedProminent)
@@ -827,7 +647,7 @@ struct FoodRecordView: View {
                             }) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "checkmark.circle.fill")
-                                    Text("保存到我的饮食记录")
+                                    Text("Save to My Diet Log")
                                         .fontWeight(.semibold)
                                 }
                                 .foregroundColor(.white)
@@ -848,7 +668,7 @@ struct FoodRecordView: View {
                             HStack(spacing: 10) {
                                 Image(systemName: "sparkles")
                                     .foregroundColor(.blue)
-                                Text("已上传图片，AI 即将返回营养分析结果")
+                                Text("Image uploaded. AI nutrition analysis incoming...")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -861,11 +681,11 @@ struct FoodRecordView: View {
                     .padding(.bottom, 24)
                 }
             }
-            .navigationTitle("美食记录")
+            .navigationTitle("Food Record")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
+                    Button("Cancel") {
                         viewModel.selectedImage = nil
                         viewModel.analysisResult = nil
                         viewModel.errorMessage = nil
@@ -888,10 +708,10 @@ struct AIAnalyzingView: View {
     @State private var stageIndex = 0
 
     private let stages = [
-        "上传图片到云端",
-        "识别食物种类",
-        "估算卡路里与营养素",
-        "生成健康建议"
+        "Uploading image",
+        "Identifying food items",
+        "Estimating calories & nutrients",
+        "Generating health insights"
     ]
 
     var body: some View {
@@ -922,7 +742,7 @@ struct AIAnalyzingView: View {
             }
 
             VStack(spacing: 6) {
-                Text("AI 营养引擎分析中")
+                Text("AI Nutrition Analysis")
                     .font(.headline)
                 Text(stages[stageIndex])
                     .font(.subheadline)
@@ -966,157 +786,7 @@ struct AIAnalyzingView: View {
     }
 }
 
-// MARK: - 记录详情页（支持编辑食物名称与热量）
-
-struct RecordDetailView: View {
-    let item: NutritionHistoryItem
-    @ObservedObject var viewModel: NutritionViewModel
-    @State private var showingEdit = false
-
-    private var currentItem: NutritionHistoryItem {
-        viewModel.history.first(where: { $0.id == item.id }) ?? item
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // 图片
-                if let image = currentItem.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .cornerRadius(16)
-                        .padding(.horizontal)
-                } else if let imageURL = currentItem.imageURL, let url = URL(string: imageURL) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .cornerRadius(16)
-                        case .failure(_):
-                            placeholderImage
-                        case .empty:
-                            ProgressView()
-                        @unknown default:
-                            placeholderImage
-                        }
-                    }
-                    .padding(.horizontal)
-                } else {
-                    placeholderImage
-                        .padding(.horizontal)
-                }
-                
-                // 摄入时间
-                HStack {
-                    Image(systemName: "clock")
-                        .foregroundColor(.secondary)
-                    Text(currentItem.date, style: .date)
-                        .foregroundColor(.secondary)
-                    Text(currentItem.date, style: .time)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-                .font(.subheadline)
-                .padding(.horizontal)
-                
-                // 营养结果卡片
-                NutritionResultCard(result: currentItem.result)
-                    .padding(.horizontal)
-            }
-            .padding(.top)
-        }
-        .navigationTitle(currentItem.result.foodName)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("编辑") {
-                    showingEdit = true
-                }
-                .foregroundColor(Color.auraGreen)
-            }
-        }
-        .sheet(isPresented: $showingEdit) {
-            EditFoodRecordSheet(
-                item: currentItem,
-                viewModel: viewModel,
-                isPresented: $showingEdit
-            )
-        }
-    }
-
-    private var placeholderImage: some View {
-        RoundedRectangle(cornerRadius: 16)
-            .fill(Color(UIColor.secondarySystemBackground))
-            .frame(height: 220)
-            .overlay(
-                Image(systemName: "photo")
-                    .font(.largeTitle)
-                    .foregroundColor(.secondary)
-            )
-    }
-}
-
-// MARK: - 编辑食物名称与热量
-
-struct EditFoodRecordSheet: View {
-    let item: NutritionHistoryItem
-    @ObservedObject var viewModel: NutritionViewModel
-    @Binding var isPresented: Bool
-    @State private var foodName: String = ""
-    @State private var caloriesText: String = ""
-    @State private var isSaving = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("食物名称") {
-                    TextField("名称", text: $foodName)
-                }
-                Section("热量 (kcal)") {
-                    TextField("热量", text: $caloriesText)
-                        .keyboardType(.numberPad)
-                }
-            }
-            .navigationTitle("编辑记录")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
-                        isPresented = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        saveAndDismiss()
-                    }
-                    .disabled(isSaving || foodName.isEmpty || Int(caloriesText) == nil)
-                    .foregroundColor(Color.auraGreen)
-                }
-            }
-            .onAppear {
-                foodName = item.result.foodName
-                caloriesText = "\(item.result.calories)"
-            }
-        }
-    }
-
-    private func saveAndDismiss() {
-        guard let cal = Int(caloriesText), cal > 0 else { return }
-        isSaving = true
-        Task {
-            await viewModel.updateHistoryItem(item, foodName: foodName.trimmingCharacters(in: .whitespacesAndNewlines), calories: cal, protein: item.result.protein, carbs: item.result.carbs, fat: item.result.fat)
-            await MainActor.run {
-                isSaving = false
-                isPresented = false
-            }
-        }
-    }
-}
-
-// MARK: - 周/月度饮食结构图（智能报告）
+// MARK: - Diet Structure Report
 
 struct DietStructureReportView: View {
     let history: [NutritionHistoryItem]
@@ -1155,27 +825,27 @@ struct DietStructureReportView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    Picker("范围", selection: $isWeekly) {
-                        Text("近一周").tag(true)
-                        Text("近一月").tag(false)
+                    Picker("Range", selection: $isWeekly) {
+                        Text("Past Week").tag(true)
+                        Text("Past Month").tag(false)
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
 
                     if filteredHistory.isEmpty {
-                        Text("该时段暂无饮食记录")
+                        Text("No diet records for this period")
                             .foregroundColor(Color.auraGrayLight)
                             .padding(.vertical, 40)
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("宏量营养素占比")
+                            Text("Macronutrient Breakdown")
                                 .font(.headline)
                             HStack(spacing: 12) {
-                                ReportBar(label: "蛋白质", value: proteinPct, color: .red)
-                                ReportBar(label: "碳水", value: carbsPct, color: .blue)
-                                ReportBar(label: "脂肪", value: fatPct, color: .orange)
+                                ReportBar(label: "Protein", value: proteinPct, color: .red)
+                                ReportBar(label: "Carbs", value: carbsPct, color: .blue)
+                                ReportBar(label: "Fat", value: fatPct, color: .orange)
                             }
-                            Text("总摄入 \(Int(totalCal)) kcal")
+                            Text("Total intake: \(Int(totalCal)) kcal")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -1187,11 +857,11 @@ struct DietStructureReportView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("饮食结构图")
+            .navigationTitle("Diet Structure")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button("Close") { dismiss() }
                         .foregroundColor(Color.auraGreen)
                 }
             }
@@ -1224,88 +894,7 @@ struct ReportBar: View {
     }
 }
 
-// MARK: - 历史记录行
-
-struct HistoryItemRow: View {
-    let item: NutritionHistoryItem
-    
-    var body: some View {
-        HStack(spacing: 14) {
-            if let image = item.image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 56, height: 56)
-                    .cornerRadius(12)
-                    .clipped()
-            } else if let imageURL = item.imageURL, let url = URL(string: imageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure(_):
-                        Color(UIColor.secondarySystemBackground)
-                            .overlay(
-                                Image(systemName: "photo")
-                                    .foregroundColor(.secondary)
-                            )
-                    case .empty:
-                        Color(UIColor.secondarySystemBackground)
-                            .overlay(ProgressView())
-                    @unknown default:
-                        Color(UIColor.secondarySystemBackground)
-                    }
-                }
-                .frame(width: 56, height: 56)
-                .cornerRadius(12)
-                .clipped()
-            } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(UIColor.secondarySystemBackground))
-                    .frame(width: 56, height: 56)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.secondary)
-                    )
-            }
-            
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.result.foodName)
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                
-                HStack(spacing: 12) {
-                    Text("\(item.result.calories) kcal")
-                        .font(.subheadline)
-                        .foregroundColor(.orange)
-                    
-                    Text("蛋白\(String(format: "%.0f", item.result.protein))g")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(item.date, style: .time)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.gray.opacity(0.5))
-            }
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-}
-
-// MARK: - 营养结果卡片
+// MARK: - Nutrition Result Card
 
 struct NutritionResultCard: View {
     let result: NutritionResult
@@ -1323,7 +912,7 @@ struct NutritionResultCard: View {
             // Calories
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("总卡路里")
+                    Text("Total Calories")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -1342,9 +931,9 @@ struct NutritionResultCard: View {
             
             // Macronutrients
             HStack(spacing: 20) {
-                MacroNutrientView(name: "蛋白质", value: result.protein, color: .red)
-                MacroNutrientView(name: "碳水", value: result.carbs, color: .blue)
-                MacroNutrientView(name: "脂肪", value: result.fat, color: .yellow)
+                MacroNutrientView(name: "Protein", value: result.protein, color: .red)
+                MacroNutrientView(name: "Carbs", value: result.carbs, color: .blue)
+                MacroNutrientView(name: "Fat", value: result.fat, color: .yellow)
             }
             
             // Description

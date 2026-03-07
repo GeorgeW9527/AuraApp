@@ -12,6 +12,7 @@ import FirebaseCore
 @main
 struct AuraApp: App {
     @StateObject private var authViewModel = AuthViewModel()
+    @StateObject private var healthDataManager = HealthDataManager()
     
     init() {
         // 启动时打印本地存储状态（调试用）
@@ -27,6 +28,7 @@ struct AuraApp: App {
                 } else {
                     ContentView()
                         .environmentObject(authViewModel)
+                        .environmentObject(healthDataManager)
                 }
             } else {
                 AuthView()

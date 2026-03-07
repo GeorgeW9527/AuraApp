@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import FirebaseAuth
 
 struct ChatMessage: Identifiable {
     let id = UUID()
@@ -27,6 +28,7 @@ struct InsightCard: Identifiable {
 
 struct AIAdviceView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var healthDataManager: HealthDataManager
     @State private var inputText = ""
     @State private var messages: [ChatMessage] = [
         ChatMessage(
@@ -39,41 +41,103 @@ struct AIAdviceView: View {
     @State private var streamingText = ""
     @State private var errorMessage: String?
 
-    private let insightCards: [InsightCard] = [
-        InsightCard(
-            title: "Hydration Needed",
-            description: "Drink 250ml now to stay on track with your target.",
-            urgency: "IMMEDIATE",
-            iconName: "drop.fill",
-            iconColor: Color(red: 0.2, green: 0.5, blue: 0.9),
-            cardColor: Color(red: 0.9, green: 0.95, blue: 1.0)
-        ),
-        InsightCard(
-            title: "Nutrition !",
-            description: "Your protein intake is optimal today. Keep it up!",
-            urgency: nil,
-            iconName: "fork.knife",
-            iconColor: Color.auraGreen,
-            cardColor: Color.auraGreenLight
-        )
-    ]
-
     private let quickActions = ["Analyze breakfast", "Symptom checker", "Supplements"]
+    private let localStorage = LocalStorageManager.shared
+
+    private var userId: String {
+        authViewModel.currentUser?.uid ?? authViewModel.userProfile?.userId ?? ""
+    }
+
+    private var todayNutritionRecords: [LocalStorageManager.LocalNutritionRecord] {
+        guard !userId.isEmpty else { return [] }
+        return localStorage.loadNutritionRecords(userId: userId).filter {
+            Calendar.current.isDate($0.timestamp, inSameDayAs: Date())
+        }
+    }
+
+    private var todayCalories: Int {
+        todayNutritionRecords.reduce(0) { $0 + $1.calories }
+    }
+
+    private var calorieGoal: Int {
+        Int((authViewModel.userProfile?.dailyCalorieGoal ?? 1800).rounded())
+    }
+
+    private var insightCards: [InsightCard] {
+        let stepGoal = 10_000
+        let remainingSteps = max(0, stepGoal - healthDataManager.todayStepCount)
+        let remainingCalories = max(0, calorieGoal - todayCalories)
+        let heartRate = healthDataManager.latestHeartRate ?? healthDataManager.restingHeartRate
+
+        var cards: [InsightCard] = [
+            InsightCard(
+                title: remainingSteps > 0 ? "Move Goal" : "Move Goal Closed",
+                description: remainingSteps > 0
+                    ? "You have \(remainingSteps.formatted()) steps left to hit today's goal."
+                    : "You've already reached today's step target.",
+                urgency: remainingSteps > 0 ? "TODAY" : nil,
+                iconName: "figure.walk",
+                iconColor: Color.auraGreen,
+                cardColor: Color.auraGreenLight
+            ),
+            InsightCard(
+                title: "Calorie Balance",
+                description: remainingCalories > 0
+                    ? "\(remainingCalories.formatted()) kcal remaining in today's intake target."
+                    : "You've reached today's calorie target. Keep dinner on the lighter side.",
+                urgency: remainingCalories > 300 ? nil : "WATCH",
+                iconName: "flame.fill",
+                iconColor: Color.orange,
+                cardColor: Color.orange.opacity(0.15)
+            )
+        ]
+
+        if let heartRate {
+            cards.append(
+                InsightCard(
+                    title: "Heart Rate Update",
+                    description: "Latest reading is \(heartRate) BPM. Use it as today's current cardio baseline.",
+                    urgency: heartRate > 105 ? "CHECK" : nil,
+                    iconName: "heart.fill",
+                    iconColor: Color.auraRed,
+                    cardColor: Color(red: 1.0, green: 0.93, blue: 0.95)
+                )
+            )
+        }
+
+        return cards
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 headerSection
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        dailyInsightsSection
-                        chatSection
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            dailyInsightsSection
+                            chatSection
+                            Color.clear
+                                .frame(height: 1)
+                                .id("chatBottom")
+                        }
+                        .padding(.bottom, 120)
                     }
-                    .padding(.bottom, 120)
+                    .onChange(of: messages.count) {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo("chatBottom", anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: streamingText) {
+                        proxy.scrollTo("chatBottom", anchor: .bottom)
+                    }
                 }
                 inputSection
             }
             .background(Color.white)
+            .task {
+                await healthDataManager.refreshIfNeeded()
+            }
         }
     }
 
@@ -113,7 +177,7 @@ struct AIAdviceView: View {
                     .font(.caption)
                     .foregroundColor(Color.auraGrayLight)
                 Spacer()
-                Text("3 ALERTS")
+                Text("\(insightCards.count) ALERTS")
                     .font(.caption2)
                     .fontWeight(.medium)
                     .foregroundColor(.white)
@@ -359,7 +423,7 @@ struct AIAdviceView: View {
     }
 }
 
-// MARK: - 单角圆角扩展
+// MARK: - Rounded Corner Extension
 
 extension View {
     func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
@@ -384,4 +448,5 @@ struct RoundedCornerShape: Shape {
 #Preview {
     AIAdviceView()
         .environmentObject(AuthViewModel())
+        .environmentObject(HealthDataManager())
 }

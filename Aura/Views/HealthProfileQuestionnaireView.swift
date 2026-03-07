@@ -65,16 +65,6 @@ struct HealthProfileQuestionnaireView: View {
             .navigationTitle("Health Profile")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        // 强制问卷不允许返回，可留空或提示
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(Color.auraGrayDark)
-                    }
-                }
-            }
         }
     }
 

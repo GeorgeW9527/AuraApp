@@ -205,6 +205,16 @@ struct EditMealView: View {
                 }
             }
 
+            if ingredients.isEmpty {
+                Text("No ingredients detected. Tap ADD INGREDIENT to add manually.")
+                    .font(.caption)
+                    .foregroundColor(Color.auraGrayLight)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(white: 0.96))
+                    .cornerRadius(10)
+            }
+
             ForEach(Array(ingredients.enumerated()), id: \.element.id) { idx, _ in
                 HStack(spacing: 12) {
                     Circle()
@@ -300,13 +310,6 @@ struct EditMealView: View {
         carbsText = "\(Int(r.carbs))"
         fatsText = "\(Int(r.fat))"
         ingredients = parseIngredients(from: r.description)
-        if ingredients.isEmpty {
-            ingredients = [
-                EditMealIngredient(name: "Sourdough Bread", quantity: "1 slice"),
-                EditMealIngredient(name: "Poached Egg", quantity: "1 unit"),
-                EditMealIngredient(name: "Avocado", quantity: "1/2 fruit")
-            ]
-        }
     }
 
     private func parseIngredients(from description: String) -> [EditMealIngredient] {

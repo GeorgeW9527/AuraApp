@@ -94,7 +94,7 @@ struct UserProfileView: View {
         }
     }
 
-    // MARK: - Profile Header（头像 + 姓名 + ID）
+    // MARK: - Profile Header
 
     private var profileHeader: some View {
         VStack(spacing: 12) {
@@ -116,18 +116,18 @@ struct UserProfileView: View {
                 }
             }
             .buttonStyle(.plain)
-            .confirmationDialog("更换头像", isPresented: $showingAvatarSourceSheet) {
+            .confirmationDialog("Change Avatar", isPresented: $showingAvatarSourceSheet) {
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("拍照") {
+                    Button("Take Photo") {
                         showingCamera = true
                     }
                 }
-                Button("从相册选择") {
+                Button("Choose from Library") {
                     showingImagePicker = true
                 }
-                Button("取消", role: .cancel) {}
+                Button("Cancel", role: .cancel) {}
             } message: {
-                Text("选择头像来源")
+                Text("Select avatar source")
             }
             .sheet(isPresented: $showingImagePicker) {
                 ImagePicker(image: $selectedAvatarImage, onImageSelected: {
@@ -141,7 +141,7 @@ struct UserProfileView: View {
                     handleAvatarSelected()
                 })
             }
-            Text(userName.isEmpty ? "用户" : userName)
+            Text(userName.isEmpty ? "User" : userName)
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(Color.auraGrayDark)
@@ -212,7 +212,7 @@ struct UserProfileView: View {
             .frame(width: 100, height: 100)
             .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
             .overlay(
-                Text(String((userName.isEmpty ? "用" : userName).prefix(1)))
+                Text(String((userName.isEmpty ? "U" : userName).prefix(1)))
                     .font(.system(size: 40, weight: .bold))
                     .foregroundColor(.white)
             )
@@ -450,11 +450,11 @@ struct UserProfileView: View {
                 Image(systemName: "waveform.path.ecg")
                     .font(.title2)
                     .foregroundColor(Color.auraGreen)
-                Text("Au")
+                Text("Bio")
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(Color.auraGrayDark)
-                Text("ra")
+                Text("AI")
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(Color.auraGreen)
@@ -620,39 +620,39 @@ struct EditProfileView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("基本信息")) {
-                    TextField("昵称（选填）", text: $userName)
-                    Picker("性别", selection: $gender) {
-                        Text("男").tag("男")
-                        Text("女").tag("女")
+                Section(header: Text("Basic Info")) {
+                    TextField("Display Name (optional)", text: $userName)
+                    Picker("Gender", selection: $gender) {
+                        Text("Male").tag("男")
+                        Text("Female").tag("女")
                     }
-                    Stepper("年龄: \(age)", value: $age, in: 1...120)
+                    Stepper("Age: \(age)", value: $age, in: 1...120)
                 }
-                Section(header: Text("身体数据")) {
-                    Picker("单位", selection: $useMetric) {
-                        Text("公制 (cm/kg)").tag(true)
-                        Text("英制 (ft/lb)").tag(false)
+                Section(header: Text("Body Metrics")) {
+                    Picker("Units", selection: $useMetric) {
+                        Text("Metric (cm/kg)").tag(true)
+                        Text("Imperial (ft/lb)").tag(false)
                     }
-                    Stepper("身高: \(height) cm", value: $height, in: 100...250)
-                    Stepper("体重: \(weight) kg", value: $weight, in: 30...200)
-                    Stepper("静息心率: \(restingHeartRate) BPM", value: $restingHeartRate, in: 40...120)
+                    Stepper("Height: \(height) cm", value: $height, in: 100...250)
+                    Stepper("Weight: \(weight) kg", value: $weight, in: 30...200)
+                    Stepper("Resting HR: \(restingHeartRate) BPM", value: $restingHeartRate, in: 40...120)
                 }
-                Section(header: Text("健康目标")) {
-                    Picker("主要目标", selection: $healthGoalRaw) {
+                Section(header: Text("Health Goal")) {
+                    Picker("Primary Goal", selection: $healthGoalRaw) {
                         Text("Weight Loss").tag("weight_loss")
                         Text("Balanced Diet").tag("balanced_diet")
                         Text("Build Muscle").tag("build_muscle")
                     }
                 }
             }
-            .navigationTitle("编辑资料")
+            .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
+                    Button("Save") {
                         Task {
                             await onSave()
                             dismiss()
@@ -667,14 +667,14 @@ struct EditProfileView: View {
     }
 }
 
-// MARK: - 可复用头像视图（各 Tab 左上角使用）
+// MARK: - Profile Header Avatar (reusable across tabs)
 
 struct ProfileHeaderAvatarView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     var size: CGFloat = 44
 
     private var displayName: String {
-        authViewModel.userProfile?.displayName ?? "用户"
+        authViewModel.userProfile?.displayName ?? "User"
     }
 
     var body: some View {
@@ -702,7 +702,7 @@ struct ProfileHeaderAvatarView: View {
         Circle()
             .fill(Color.auraGreen.opacity(0.3))
             .overlay(
-                Text(String(displayName.prefix(1)).isEmpty ? "用" : String(displayName.prefix(1)))
+                Text(String(displayName.prefix(1)).isEmpty ? "U" : String(displayName.prefix(1)))
                     .font(.system(size: size * 0.4, weight: .bold))
                     .foregroundColor(Color.auraGreen)
             )
