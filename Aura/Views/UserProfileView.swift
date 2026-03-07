@@ -57,8 +57,8 @@ struct UserProfileView: View {
                 Button {
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.body)
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(Color.auraGrayDark)
                 }
             }
@@ -104,15 +104,15 @@ struct UserProfileView: View {
                 ZStack(alignment: .bottomTrailing) {
                     avatarView
                     Circle()
-                        .fill(Color.auraGreen)
-                        .frame(width: 28, height: 28)
+                        .fill(Color(red: 0.11, green: 0.39, blue: 0.31))
+                        .frame(width: 24, height: 24)
                         .overlay(
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 12))
+                            Image(systemName: "pencil")
+                                .font(.system(size: 10))
                                 .foregroundColor(.white)
                         )
                         .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                        .offset(x: -4, y: -4)
+                        .offset(x: 2, y: 2)
                 }
             }
             .buttonStyle(.plain)
@@ -142,17 +142,13 @@ struct UserProfileView: View {
                 })
             }
             Text(userName.isEmpty ? "User" : userName)
-                .font(.title2)
-                .fontWeight(.bold)
+                .font(.system(size: 24, weight: .bold))
                 .foregroundColor(Color.auraGrayDark)
-            Text(userEmail)
-                .font(.subheadline)
-                .foregroundColor(Color.auraGrayLight)
             Text("ID: \(userShortId)")
-                .font(.caption)
+                .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Color.auraGrayLight)
         }
-        .padding(.top, 20)
+        .padding(.top, 16)
     }
 
     private func handleAvatarSelected() {
@@ -169,16 +165,16 @@ struct UserProfileView: View {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(width: 100, height: 100)
+                .frame(width: 90, height: 90)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
+                .overlay(Circle().stroke(Color(red: 0.11, green: 0.39, blue: 0.31), lineWidth: 3))
         } else if let localImage = LocalStorageManager.shared.loadUserAvatar() {
             Image(uiImage: localImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(width: 100, height: 100)
+                .frame(width: 90, height: 90)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
+                .overlay(Circle().stroke(Color(red: 0.11, green: 0.39, blue: 0.31), lineWidth: 3))
         } else if let urlString = authViewModel.userProfile?.avatarURL, let url = URL(string: urlString) {
             AsyncImage(url: url) { phase in
                 switch phase {
@@ -192,9 +188,9 @@ struct UserProfileView: View {
                     avatarPlaceholder
                 }
             }
-            .frame(width: 100, height: 100)
+            .frame(width: 90, height: 90)
             .clipShape(Circle())
-            .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
+            .overlay(Circle().stroke(Color(red: 0.11, green: 0.39, blue: 0.31), lineWidth: 3))
         } else {
             avatarPlaceholder
         }
@@ -204,60 +200,70 @@ struct UserProfileView: View {
         Circle()
             .fill(
                 LinearGradient(
-                    colors: [Color.auraGreen.opacity(0.8), Color.auraGreen.opacity(0.5)],
+                    colors: [Color(red: 0.84, green: 0.91, blue: 0.34).opacity(0.6), Color(red: 0.84, green: 0.91, blue: 0.34)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             )
-            .frame(width: 100, height: 100)
-            .overlay(Circle().stroke(Color.auraGreen, lineWidth: 2))
+            .frame(width: 90, height: 90)
+            .overlay(Circle().stroke(Color(red: 0.11, green: 0.39, blue: 0.31), lineWidth: 3))
             .overlay(
                 Text(String((userName.isEmpty ? "U" : userName).prefix(1)))
-                    .font(.system(size: 40, weight: .bold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundColor(Color(red: 0.11, green: 0.39, blue: 0.31))
             )
     }
 
     // MARK: - AI Health Score Card
 
     private var aiHealthScoreCard: some View {
-        HStack(alignment: .top, spacing: 14) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.auraGreen.opacity(0.3))
-                .frame(width: 44, height: 44)
+        HStack(alignment: .center, spacing: 16) {
+            // Chart icon in dark green circle
+            Circle()
+                .fill(Color(red: 0.11, green: 0.39, blue: 0.31))
+                .frame(width: 48, height: 48)
                 .overlay(
                     Image(systemName: "chart.bar.fill")
-                        .font(.title3)
-                        .foregroundColor(Color.auraGreen)
-                )
-            VStack(alignment: .leading, spacing: 6) {
-                Text("AI HEALTH SCORE")
-                    .font(.caption2)
-                    .foregroundColor(Color.auraGreen)
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("84 / 100")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(Color.auraGrayDark)
-                    Text("OPTIMAL")
-                        .font(.caption2)
-                        .fontWeight(.medium)
+                        .font(.system(size: 20))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.auraGreen)
-                        .cornerRadius(12)
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("AI HEALTH SCORE")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(red: 0.11, green: 0.39, blue: 0.31))
+
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text("84")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(Color(red: 0.11, green: 0.39, blue: 0.31))
+                    Text("/100")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color(red: 0.11, green: 0.39, blue: 0.31).opacity(0.7))
                 }
-                Text("Updated 2h ago")
-                    .font(.caption2)
-                    .foregroundColor(Color.auraGrayLight)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer()
+
+            // OPTIMAL badge
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("OPTIMAL")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color(red: 0.11, green: 0.39, blue: 0.31))
+                    )
+
+                Text("Updated 2h ago")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Color(red: 0.11, green: 0.39, blue: 0.31).opacity(0.7))
+            }
         }
         .padding(16)
-        .background(Color.auraGreenLight)
-        .cornerRadius(14)
+        .background(Color(red: 0.84, green: 0.91, blue: 0.34))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
         .padding(.horizontal, 20)
     }
 
@@ -266,50 +272,40 @@ struct UserProfileView: View {
     private var bodyProfileSubtitle: String {
         let h = useMetric ? "\(height) cm" : "\(Int(Double(height) * 0.0328084)) ft"
         let w = useMetric ? "\(weight) kg" : "\(Int(Double(weight) * 2.205)) lb"
-        let goal = healthGoalDisplay
-        return "\(h), \(w), RHR \(restingHeartRate) · \(goal)"
-    }
-
-    private var healthGoalDisplay: String {
-        switch healthGoalRaw {
-        case "weight_loss": return "Weight Loss"
-        case "balanced_diet": return "Balanced Diet"
-        case "build_muscle": return "Build Muscle"
-        default: return "Balanced Diet"
-        }
+        return "Height, Weight, Biometrics"
     }
 
     private var healthDataSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("HEALTH DATA")
-                .font(.caption)
+                .font(.system(size: 12, weight: .bold))
                 .foregroundColor(Color.auraGrayLight)
                 .padding(.horizontal, 20)
 
             VStack(spacing: 0) {
                 SettingsNavRow(
-                    icon: "person",
-                    iconColor: Color.auraGreen,
+                    icon: "person.fill",
+                    iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
                     title: "Body Profile",
-                    subtitle: bodyProfileSubtitle
+                    subtitle: "Height, Weight, Biometrics"
                 ) { showingEditProfile = true }
 
-                Divider().padding(.leading, 56)
+                Divider().padding(.leading, 72)
 
                 SettingsNavRow(
                     icon: "target",
-                    iconColor: Color.auraGreen,
+                    iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
                     title: "Goal Settings",
                     subtitle: "Daily calorie & nutrition targets",
                     showAIBadge: true
                 ) { /* TODO */ }
 
-                Divider().padding(.leading, 56)
+                Divider().padding(.leading, 72)
 
                 NavigationLink(destination: SmartReportView()) {
                     SettingsNavRowContent(
-                        icon: "chart.line.uptrend.xyaxis",
-                        iconColor: Color.auraGreen,
+                        icon: "chart.bar.fill",
+                        iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
                         title: "Smart Report",
                         subtitle: "Comprehensive health & nutrition insights"
                     )
@@ -317,7 +313,7 @@ struct UserProfileView: View {
                 .buttonStyle(.plain)
             }
             .background(Color.white)
-            .cornerRadius(14)
+            .cornerRadius(16)
             .padding(.horizontal, 20)
         }
     }
@@ -327,77 +323,33 @@ struct UserProfileView: View {
     private var systemSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("SYSTEM")
-                .font(.caption)
+                .font(.system(size: 12, weight: .bold))
                 .foregroundColor(Color.auraGrayLight)
                 .padding(.horizontal, 20)
 
             VStack(spacing: 0) {
                 HStack(spacing: 14) {
-                    SettingsIconView(icon: "bell.fill", color: Color.auraGreen)
+                    SettingsIconView(icon: "bell.fill", color: Color(red: 0.11, green: 0.39, blue: 0.31))
                     Text("Notifications")
-                        .font(.subheadline)
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(Color.auraGrayDark)
                     Spacer()
                     Toggle("", isOn: $notificationsEnabled)
-                        .tint(Color.auraGreen)
+                        .tint(Color(red: 0.84, green: 0.91, blue: 0.34))
                 }
-                .padding(14)
+                .padding(16)
 
                 Divider().padding(.leading, 56)
 
                 SettingsNavRow(
                     icon: "shield.fill",
-                    iconColor: Color.auraGreen,
+                    iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
                     title: "Privacy & Data",
                     subtitle: nil
                 ) { /* TODO */ }
-
-                Divider().padding(.leading, 56)
-
-                HStack(spacing: 14) {
-                    SettingsIconView(icon: "ruler", color: Color.auraGreen)
-                    Text("Measurement Units")
-                        .font(.subheadline)
-                        .foregroundColor(Color.auraGrayDark)
-                    Spacer()
-                    HStack(spacing: 0) {
-                        Button {
-                            useMetric = true
-                            Task { await saveProfileIfNeeded() }
-                        } label: {
-                            Text("Metric")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(useMetric ? Color.auraGrayDark : Color.auraGrayLight)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(useMetric ? Color(white: 0.92) : Color.clear)
-                                .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        Button {
-                            useMetric = false
-                            Task { await saveProfileIfNeeded() }
-                        } label: {
-                            Text("Imperial")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(!useMetric ? Color.auraGrayDark : Color.auraGrayLight)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(!useMetric ? Color(white: 0.92) : Color.clear)
-                                .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(2)
-                    .background(Color(white: 0.95))
-                    .cornerRadius(10)
-                }
-                .padding(14)
             }
             .background(Color.white)
-            .cornerRadius(14)
+            .cornerRadius(16)
             .padding(.horizontal, 20)
         }
     }
@@ -407,20 +359,20 @@ struct UserProfileView: View {
     private var supportSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("SUPPORT")
-                .font(.caption)
+                .font(.system(size: 12, weight: .bold))
                 .foregroundColor(Color.auraGrayLight)
                 .padding(.horizontal, 20)
 
             VStack(spacing: 0) {
                 SettingsNavRow(
-                    icon: "questionmark.circle",
-                    iconColor: Color.auraGrayLight,
+                    icon: "questionmark.circle.fill",
+                    iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
                     title: "Help Center",
                     subtitle: nil,
                     showExternalLink: true
                 ) { /* TODO */ }
 
-                Divider().padding(.leading, 56)
+                Divider().padding(.leading, 72)
 
                 Button {
                     showingLogoutAlert = true
@@ -428,16 +380,16 @@ struct UserProfileView: View {
                     HStack(spacing: 14) {
                         SettingsIconView(icon: "rectangle.portrait.and.arrow.right", color: Color.auraRed)
                         Text("Log Out")
-                            .font(.subheadline)
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(Color.auraRed)
                         Spacer()
                     }
-                    .padding(14)
+                    .padding(16)
                 }
                 .buttonStyle(.plain)
             }
             .background(Color.white)
-            .cornerRadius(14)
+            .cornerRadius(16)
             .padding(.horizontal, 20)
         }
     }
@@ -446,22 +398,21 @@ struct UserProfileView: View {
 
     private var footer: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 4) {
-                Image(systemName: "waveform.path.ecg")
-                    .font(.title2)
-                    .foregroundColor(Color.auraGreen)
+            HStack(spacing: 2) {
+                Image(systemName: "bolt.heart.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(Color(red: 0.11, green: 0.39, blue: 0.31))
                 Text("Bio")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(Color.auraGrayDark)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(Color(red: 0.11, green: 0.39, blue: 0.31))
                 Text("AI")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(Color.auraGreen)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(Color(red: 0.11, green: 0.39, blue: 0.31))
             }
-            .padding(.top, 24)
+            .padding(.top, 32)
             Text("VERSION 2.4.1 (BUILD 882)")
-                .font(.caption2)
+                .font(.system(size: 11, weight: .medium))
+                .tracking(1)
                 .foregroundColor(Color.auraGrayLight)
         }
     }
@@ -523,10 +474,14 @@ struct SettingsIconView: View {
     let color: Color
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(color.opacity(0.2))
-            .frame(width: 36, height: 36)
-            .overlay(Image(systemName: icon).font(.subheadline).foregroundColor(color))
+        RoundedRectangle(cornerRadius: 10)
+            .fill(Color(red: 0.92, green: 0.96, blue: 0.92))
+            .frame(width: 40, height: 40)
+            .overlay(
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(color)
+            )
     }
 }
 
@@ -539,42 +494,42 @@ struct SettingsNavRowContent: View {
     var showExternalLink = false
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 16) {
             ZStack(alignment: .topTrailing) {
                 SettingsIconView(icon: icon, color: iconColor)
                 if showAIBadge {
                     Text("AI")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.white)
-                        .padding(2)
-                        .background(Color.auraGreen)
-                        .cornerRadius(4)
-                        .offset(x: 4, y: -4)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color(red: 0.11, green: 0.39, blue: 0.31))
+                        .cornerRadius(5)
+                        .offset(x: 6, y: -6)
                 }
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(Color.auraGrayDark)
                 if let sub = subtitle {
                     Text(sub)
-                        .font(.caption)
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Color.auraGrayLight)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if showExternalLink {
                 Image(systemName: "arrow.up.right")
-                    .font(.caption)
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(Color.auraGrayLight)
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.caption)
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(Color.auraGrayLight)
             }
         }
-        .padding(14)
+        .padding(16)
     }
 }
 

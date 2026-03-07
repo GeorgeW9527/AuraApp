@@ -13,6 +13,7 @@ extension Color {
     // Core brand colors
     static let auraGreen = Color(red: 0.20, green: 0.78, blue: 0.35)
     static let auraGreenLight = Color(red: 0.92, green: 0.97, blue: 0.92)
+    static let auraGreenDark = Color(red: 0.12, green: 0.55, blue: 0.28)
     static let auraGrayLight = Color(red: 0.65, green: 0.65, blue: 0.65)
     static let auraGrayDark = Color(red: 0.20, green: 0.23, blue: 0.22)
     static let auraRed = Color(red: 0.94, green: 0.31, blue: 0.39)
@@ -159,7 +160,6 @@ struct DailyDashboardView: View {
                     activityCardsSection
                     aiInsightSection
                 }
-                .padding(.top, 22)
                 .padding(.bottom, 16)
             }
             .background(HomePalette.contentBackground.ignoresSafeArea())
@@ -175,11 +175,11 @@ struct DailyDashboardView: View {
             NavigationLink(destination: UserProfileView()) {
                 HStack(spacing: 12) {
                     Circle()
-                        .fill(HomePalette.softIconBackground)
-                        .frame(width: 38, height: 38)
+                        .fill(Color(red: 0.92, green: 0.94, blue: 0.90))
+                        .frame(width: 42, height: 42)
                         .overlay {
                             Image(systemName: "person.fill")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(HomePalette.deepGreen)
                         }
                     VStack(alignment: .leading, spacing: 2) {
@@ -187,7 +187,7 @@ struct DailyDashboardView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(HomePalette.headerSecondaryText)
                         Text(displayName.isEmpty ? "User" : displayName)
-                            .font(.system(size: 38 * 0.58, weight: .bold))
+                            .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(HomePalette.deepGreen)
                     }
                 }
@@ -196,18 +196,19 @@ struct DailyDashboardView: View {
             Spacer()
             NavigationLink(destination: DeviceManagementView()) {
                 Circle()
-                    .stroke(HomePalette.softIconStroke, lineWidth: 1)
-                    .background(Circle().fill(HomePalette.contentBackground))
-                    .frame(width: 38, height: 38)
+                    .stroke(Color(red: 0.88, green: 0.90, blue: 0.86), lineWidth: 1)
+                    .background(Circle().fill(Color.white))
+                    .frame(width: 42, height: 42)
                     .overlay(
                         Image(systemName: "applewatch")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundStyle(HomePalette.deepGreen)
                     )
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
     }
 
     // MARK: - Goal Insight
@@ -369,15 +370,16 @@ struct DailyDashboardView: View {
             stepsCard
             heartRateCard
         }
+        .frame(height: 180)
         .padding(.horizontal, 20)
     }
 
     private var stepsCard: some View {
         let pct = min(1.0, Double(steps) / Double(stepsGoal))
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(HomePalette.contentBackground.opacity(0.8))
+                    .fill(Color.white.opacity(0.8))
                     .frame(width: 30, height: 30)
                     .overlay {
                         Image(systemName: "figure.walk.motion")
@@ -389,28 +391,23 @@ struct DailyDashboardView: View {
                     .foregroundStyle(HomePalette.secondaryLabel)
             }
             Text("\(steps.formatted())")
-                .font(.system(size: 39 * 0.8, weight: .bold))
+                .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(HomePalette.numberText)
             Text("\(Int(pct * 100))% of daily goal")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(HomePalette.iconSoftGreen)
-            HStack(spacing: 4) {
-                ForEach(0..<5, id: \.self) { i in
-                    Capsule()
-                        .fill(i < 4 ? HomePalette.progressTrack : HomePalette.contentBackground)
-                        .frame(width: i == 4 ? 18 : 16, height: i == 4 ? 18 : 8)
-                }
-            }
-            .padding(.top, 2)
+            Spacer()
+            StepsMiniBarChart()
+                .frame(height: 28)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .padding(16)
         .background(HomePalette.goalCard)
         .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
     private var heartRateCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.white.opacity(0.9))
@@ -426,7 +423,7 @@ struct DailyDashboardView: View {
             }
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(heartRateDisplayText)
-                    .font(.system(size: 39 * 0.78, weight: .bold))
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.white)
                 Text("BPM")
                     .font(.system(size: 16, weight: .bold))
@@ -435,10 +432,11 @@ struct DailyDashboardView: View {
             Text("Normal Resting")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.88))
+            Spacer()
             HeartRateMiniChart()
-                .frame(height: 24)
+                .frame(height: 28)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .padding(16)
         .background(HomePalette.deepGreen)
         .clipShape(RoundedRectangle(cornerRadius: 20))
@@ -504,6 +502,25 @@ struct ArcShape: Shape {
     }
 }
 
+// MARK: - Steps Mini Bar Chart
+struct StepsMiniBarChart: View {
+    private let bars: [CGFloat] = [0.4, 0.7, 0.5, 0.9, 0.6, 0.8, 0.3, 0.65, 0.85, 0.55]
+    var body: some View {
+        GeometryReader { geo in
+            let count = CGFloat(bars.count)
+            let spacing: CGFloat = 3
+            let barWidth = (geo.size.width - spacing * (count - 1)) / count
+            HStack(alignment: .bottom, spacing: spacing) {
+                ForEach(Array(bars.enumerated()), id: \.offset) { _, value in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.white.opacity(0.85))
+                        .frame(width: barWidth, height: geo.size.height * value)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Heart Rate Mini Chart
 struct HeartRateMiniChart: View {
     private let points: [CGFloat] = [0.3, 0.5, 0.4, 0.7, 0.5, 0.8, 0.6, 0.5, 0.7, 0.4]
@@ -527,7 +544,7 @@ struct HeartRateMiniChart: View {
 
 private enum HomePalette {
     static let pageBackground = Color(red: 0.92, green: 0.92, blue: 0.92)
-    static let contentBackground = Color.white
+    static let contentBackground = Color(red: 0.97, green: 0.98, blue: 0.96)
     static let topTitle = Color(red: 0.82, green: 0.82, blue: 0.82)
 
     static let deepGreen = Color(red: 0.11, green: 0.39, blue: 0.31)

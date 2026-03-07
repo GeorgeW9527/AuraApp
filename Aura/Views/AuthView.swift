@@ -7,10 +7,6 @@
 
 import SwiftUI
 
-extension Color {
-    static let auraGreenDark = Color(red: 0.12, green: 0.55, blue: 0.28)
-}
-
 struct AuthView: View {
     @EnvironmentObject var viewModel: AuthViewModel
     @State private var isLoginMode = true

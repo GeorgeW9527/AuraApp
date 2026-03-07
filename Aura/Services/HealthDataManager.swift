@@ -3,6 +3,20 @@ import Combine
 import HealthKit
 import UIKit
 
+// MARK: - HealthKit Workout Data Model
+struct HealthKitWorkout: Identifiable, Equatable {
+    let id: String
+    let type: HKWorkoutActivityType
+    let startDate: Date
+    let duration: TimeInterval
+    let calories: Double
+    let distance: Double? // meters
+    let title: String
+
+    var durationMinutes: Int { Int(duration / 60) }
+    var caloriesInt: Int { Int(calories.rounded()) }
+}
+
 @MainActor
 final class HealthDataManager: ObservableObject {
     @Published private(set) var todayStepCount = 0
@@ -18,6 +32,9 @@ final class HealthDataManager: ObservableObject {
     @Published private(set) var storageAvailableGB: Double = 0
     @Published private(set) var storageTotalGB: Double = 0
     @Published private(set) var lastRefreshDate: Date?
+
+    // HealthKit Workouts (for tab3)
+    @Published private(set) var recentWorkouts: [HealthKitWorkout] = []
 
     private let healthStore = HKHealthStore()
     private let calendar = Calendar.current
@@ -69,7 +86,10 @@ final class HealthDataManager: ObservableObject {
             .bodyMass
         ]
 
-        let types = Set(identifiers.compactMap { HKObjectType.quantityType(forIdentifier: $0) })
+        var types: Set<HKObjectType> = Set(identifiers.compactMap { HKObjectType.quantityType(forIdentifier: $0) })
+
+        // Add workout type for reading exercise history
+        types.insert(HKObjectType.workoutType())
 
         return await withCheckedContinuation { continuation in
             healthStore.requestAuthorization(toShare: [], read: types) { success, _ in
@@ -88,12 +108,14 @@ final class HealthDataManager: ObservableObject {
         async let restingHR = fetchMostRecentQuantity(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()))
         async let oxygen = fetchMostRecentQuantity(.oxygenSaturation, unit: .percent())
         async let bodyMass = fetchMostRecentQuantity(.bodyMass, unit: .gramUnit(with: .kilo))
+        async let workouts = fetchRecentWorkouts(daysBack: 30)
 
         todayStepCount = await todaySteps
         yesterdayStepCount = await yesterdaySteps
         todayActiveEnergyBurned = Int((await activeEnergy).rounded())
         todayBasalEnergyBurned = Int((await basalEnergy).rounded())
         hourlyActiveEnergyBurned = await hourlyEnergy
+        recentWorkouts = await workouts
 
         if let bpm = await heartRate {
             latestHeartRate = Int(bpm.rounded())
@@ -175,6 +197,89 @@ final class HealthDataManager: ObservableObject {
             }
 
             healthStore.execute(query)
+        }
+    }
+
+    // MARK: - HealthKit Workouts
+
+    /// Fetch recent workouts from HealthKit
+    private func fetchRecentWorkouts(daysBack: Int) async -> [HealthKitWorkout] {
+        let workoutType = HKWorkoutType.workoutType()
+        let startDate = calendar.date(byAdding: .day, value: -daysBack, to: Date()) ?? Date()
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: Date(), options: .strictStartDate)
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: workoutType, predicate: predicate, limit: 100, sortDescriptors: [sort]) { _, samples, error in
+                if let error = error {
+                    print("⚠️ HealthKit Workout Query Error: \(error.localizedDescription)")
+                }
+
+                guard let workouts = samples as? [HKWorkout] else {
+                    print("ℹ️ No workouts found in HealthKit (samples: \(samples?.count ?? 0))")
+                    continuation.resume(returning: [])
+                    return
+                }
+
+                print("✅ Found \(workouts.count) workouts in HealthKit")
+
+                let mapped = workouts.map { workout -> HealthKitWorkout in
+                    // Use statistics(for:) for iOS 18+ compatibility
+                    let calories: Double
+                    if #available(iOS 18.0, *) {
+                        if let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
+                            let stats = workout.statistics(for: energyType)
+                            calories = stats?.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+                        } else {
+                            calories = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) ?? 0
+                        }
+                    } else {
+                        calories = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) ?? 0
+                    }
+                    let distance = workout.totalDistance?.doubleValue(for: .meter())
+
+                    let title = Self.workoutTitle(for: workout.workoutActivityType)
+                    print("   - \(title): \(workout.startDate) | \(Int(workout.duration/60))min | \(Int(calories))kcal")
+
+                    return HealthKitWorkout(
+                        id: workout.uuid.uuidString,
+                        type: workout.workoutActivityType,
+                        startDate: workout.startDate,
+                        duration: workout.duration,
+                        calories: calories,
+                        distance: distance,
+                        title: title
+                    )
+                }
+                continuation.resume(returning: mapped)
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    private static func workoutTitle(for type: HKWorkoutActivityType) -> String {
+        switch type {
+        case .running: return "Outdoor Running"
+        case .walking: return "Walking"
+        case .cycling: return "Cycling"
+        case .swimming: return "Swimming"
+        case .yoga: return "Yoga"
+        case .functionalStrengthTraining: return "Strength Training"
+        case .traditionalStrengthTraining: return "Weight Training"
+        case .highIntensityIntervalTraining: return "HIIT"
+        case .hiking: return "Hiking"
+        case .pilates: return "Pilates"
+        case .dance: return "Dance"
+        case .martialArts: return "Martial Arts"
+        case .gymnastics: return "Gymnastics"
+        case .rowing: return "Rowing"
+        case .elliptical: return "Elliptical"
+        case .stairClimbing: return "Stairs"
+        case .tennis: return "Tennis"
+        case .basketball: return "Basketball"
+        case .soccer: return "Soccer"
+        case .golf: return "Golf"
+        default: return "Workout"
         }
     }
 }
