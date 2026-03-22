@@ -28,6 +28,15 @@ struct EditMealView: View {
     @State private var showingAddIngredient = false
     @State private var newIngredientName = ""
     @State private var newIngredientQty = ""
+    @State private var selectedMacro: String? = nil
+
+    // Colors matching edit meal.png
+    private let pageBackground = Color(red: 0.97, green: 0.98, blue: 0.96)
+    private let panelBackground = Color.white
+    private let fieldBackground = Color(red: 0.96, green: 0.97, blue: 0.98)
+    private let lime = Color(red: 0.84, green: 0.91, blue: 0.34)
+    private let deepGreen = Color(red: 0.11, green: 0.39, blue: 0.31)
+    private let labelColor = Color(red: 0.62, green: 0.67, blue: 0.75)
 
     private var currentItem: NutritionHistoryItem {
         viewModel.history.first(where: { $0.id == item.id }) ?? item
@@ -35,20 +44,33 @@ struct EditMealView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 18) {
                 mealImageSection
                 mealDetailsSection
                 nutritionalBreakdownSection
                 ingredientsSection
+                Spacer(minLength: 40)
                 saveButton
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
-            .padding(.bottom, 40)
+            .padding(.bottom, 32)
         }
         .background(Color.white)
         .navigationTitle("Edit Meal")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Color.auraGrayDark)
+                }
+            }
+        }
         .onAppear {
             loadFromItem()
         }
@@ -77,86 +99,100 @@ struct EditMealView: View {
                     imagePlaceholder
                 }
             }
-            .frame(height: 220)
+            .frame(height: 200)
             .clipped()
 
+            // AI Analysis badge
             HStack(spacing: 4) {
                 Image(systemName: "sparkles")
-                    .font(.caption2)
+                    .font(.system(size: 10, weight: .bold))
                 Text("AI ANALYSIS ORIGINAL")
-                    .font(.caption2)
-                    .fontWeight(.medium)
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(0.5)
             }
             .foregroundColor(.white)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color.black.opacity(0.5))
-            .cornerRadius(8)
-            .padding(12)
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.25))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+            .padding(10)
         }
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 0))
     }
 
     private var imagePlaceholder: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color(white: 0.94))
+        RoundedRectangle(cornerRadius: 0)
+            .fill(fieldBackground)
             .overlay(
                 Image(systemName: "photo")
-                    .font(.largeTitle)
-                    .foregroundColor(Color.auraGrayLight)
+                    .font(.system(size: 40))
+                    .foregroundColor(labelColor)
             )
     }
 
-    // MARK: - Meal Details (Name, Calories)
+    // MARK: - Meal Details
 
     private var mealDetailsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            labelField("MEAL NAME", text: $mealName)
+        VStack(alignment: .leading, spacing: 14) {
+            // Meal Name
+            VStack(alignment: .leading, spacing: 6) {
+                Text("MEAL NAME")
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundColor(labelColor)
 
+                TextField("", text: $mealName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(red: 0.15, green: 0.18, blue: 0.22))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(fieldBackground)
+                    .cornerRadius(12)
+            }
+
+            // Calories
             VStack(alignment: .leading, spacing: 6) {
                 Text("CALORIES")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
-                HStack(spacing: 0) {
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundColor(labelColor)
+
+                HStack {
                     TextField("0", text: $caloriesText)
                         .keyboardType(.numberPad)
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .foregroundColor(Color.auraGreen)
-                    Text(" kcal")
-                        .font(.body)
-                        .foregroundColor(Color.auraGrayLight)
-                }
-                .padding(14)
-                .background(Color(white: 0.96))
-                .cornerRadius(10)
-            }
-        }
-    }
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(deepGreen)
 
-    private func labelField(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(Color.auraGrayLight)
-            TextField("", text: text)
-                .font(.body)
-                .foregroundColor(Color.auraGrayDark)
-                .padding(14)
-                .background(Color(white: 0.96))
-                .cornerRadius(10)
+                    Spacer()
+
+                    Text("kcal")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(labelColor)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(fieldBackground)
+                .cornerRadius(12)
+            }
         }
     }
 
     // MARK: - Nutritional Breakdown
 
     private var nutritionalBreakdownSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("NUTRITIONAL BREAKDOWN")
-                .font(.caption)
-                .foregroundColor(Color.auraGrayLight)
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.5)
+                .foregroundColor(labelColor)
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 macroCard(title: "PROTEIN", value: $proteinText)
                 macroCard(title: "CARBS", value: $carbsText)
                 macroCard(title: "FATS", value: $fatsText)
@@ -165,81 +201,99 @@ struct EditMealView: View {
     }
 
     private func macroCard(title: String, value: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption2)
-                .foregroundColor(Color.auraGrayLight)
-            TextField("0", text: value)
-                .keyboardType(.decimalPad)
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(Color.auraGrayDark)
-            Text("g")
-                .font(.caption)
-                .foregroundColor(Color.auraGrayLight)
+        let isHighlighted = selectedMacro == title
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if selectedMacro == title {
+                    selectedMacro = nil
+                } else {
+                    selectedMacro = title
+                }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(isHighlighted ? deepGreen : labelColor)
+
+                TextField("0", text: value)
+                    .keyboardType(.decimalPad)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(Color(red: 0.15, green: 0.18, blue: 0.22))
+
+                HStack {
+                    Spacer()
+                    Text("g")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(labelColor)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(isHighlighted ? lime : fieldBackground)
+            .cornerRadius(12)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color(white: 0.96))
-        .cornerRadius(10)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Ingredients
 
     private var ingredientsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("INGREDIENTS DETECTED")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundColor(labelColor)
+
                 Spacer()
+
                 Button {
                     newIngredientName = ""
                     newIngredientQty = ""
                     showingAddIngredient = true
                 } label: {
                     Text("ADD INGREDIENT")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(Color.auraGreen)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(deepGreen)
                 }
             }
 
             if ingredients.isEmpty {
                 Text("No ingredients detected. Tap ADD INGREDIENT to add manually.")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
-                    .padding(14)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(labelColor)
+                    .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(white: 0.96))
-                    .cornerRadius(10)
+                    .background(fieldBackground)
+                    .cornerRadius(12)
             }
 
             ForEach(Array(ingredients.enumerated()), id: \.element.id) { idx, _ in
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Circle()
-                        .fill(Color.auraGreen)
-                        .frame(width: 8, height: 8)
+                        .fill(deepGreen)
+                        .frame(width: 6, height: 6)
+
                     TextField("Ingredient", text: $ingredients[idx].name)
-                        .font(.subheadline)
-                        .foregroundColor(Color.auraGrayDark)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(red: 0.20, green: 0.23, blue: 0.28))
+
                     Spacer()
+
                     TextField("Qty", text: $ingredients[idx].quantity)
-                        .font(.caption)
-                        .foregroundColor(Color.auraGrayLight)
-                        .frame(width: 70)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(labelColor)
+                        .frame(width: 60)
                         .multilineTextAlignment(.trailing)
-                    Button(role: .destructive) {
-                        ingredients.remove(at: idx)
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.body)
-                            .foregroundColor(Color.auraGrayLight)
-                    }
                 }
-                .padding(14)
-                .background(Color(white: 0.96))
+                .padding(12)
+                .background(Color.white)
                 .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color(red: 0.90, green: 0.93, blue: 0.96), lineWidth: 1)
+                )
             }
         }
     }
@@ -269,7 +323,7 @@ struct EditMealView: View {
                         }
                     }
                     .fontWeight(.semibold)
-                    .foregroundColor(Color.auraGreen)
+                    .foregroundColor(deepGreen)
                     .disabled(newIngredientName.isEmpty)
                 }
             }
@@ -283,13 +337,12 @@ struct EditMealView: View {
             saveChanges()
         } label: {
             Text("Save Changes")
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(deepGreen)
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.auraGreen)
-                .cornerRadius(14)
+                .padding(.vertical, 14)
+                .background(lime)
+                .cornerRadius(12)
         }
         .buttonStyle(.plain)
         .disabled(isSaving || !isValid)
@@ -363,4 +416,3 @@ struct EditMealView: View {
         )
     }
 }
-

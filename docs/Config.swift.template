@@ -1,0 +1,45 @@
+//
+//  使用说明：复制本文件为 Aura/Config.swift（与 Aura 目录下其他源码同级）
+//  然后填入你的 Poe API Key 等敏感信息。Config.swift 已在 .gitignore 中，勿提交。
+//
+
+import Foundation
+
+/// API配置
+struct APIConfig {
+
+    // MARK: - Poe（OpenAI 兼容接口）
+
+    /// Poe API Key：在 https://poe.com/api_key 创建（需登录 Poe 账号）
+    static let openAIAPIKey = "YOUR_POE_API_KEY"
+
+    /// 必须为 chat completions 完整路径（Poe 兼容 OpenAI SDK）
+    static let openAIEndpoint = "https://api.poe.com/v1/chat/completions"
+
+    /// Tab4「AI 建议」等对话使用的模型名（Poe 上可用的 bot/model id）
+    static let openAIModel = "deepseek-v3.2"
+
+    /// Tab2 营养分析（识图）使用的模型名（需支持 vision / 多模态，以 Poe 实际支持为准）
+    static let nutritionModel = "claude-sonnet-4.5"
+
+    // MARK: - 备选（未接代码路径时可保留占位）
+
+    static let geminiAPIKey = "your-gemini-api-key-here"
+    static let geminiEndpoint = "https://generativelanguage.googleapis.com/v1/models/gemini-pro-vision:generateContent"
+    static let azureAPIKey = "your-azure-api-key-here"
+    static let azureEndpoint = "https://your-resource-name.openai.azure.com/openai/deployments/your-deployment-name/chat/completions?api-version=2024-02-15-preview"
+    static let aliAPIKey = "your-ali-api-key-here"
+    static let aliEndpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+    static let customBackendEndpoint = "https://your-backend.com/api/analyze"
+    static let customBackendToken = "your-backend-auth-token"
+
+    enum AIService {
+        case openAI, gemini, azure, ali, customBackend, mock
+    }
+
+    static let currentService: AIService = .openAI
+
+    static let requestTimeout: TimeInterval = 120
+    static let imageCompressionQuality: CGFloat = 0.5
+    static let maxRetryCount = 3
+}

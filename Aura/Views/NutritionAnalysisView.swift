@@ -84,7 +84,7 @@ struct NutritionAnalysisView: View {
                     .padding(.bottom, 28)
                 }
             }
-            .sheet(isPresented: $showingCamera) {
+            .fullScreenCover(isPresented: $showingCamera) {
                 CameraView(image: $viewModel.selectedImage, onImageCaptured: { showingFoodRecord = true })
             }
             .sheet(isPresented: $showingImagePicker) {
@@ -558,68 +558,30 @@ struct FoodRecordView: View {
     @Binding var isPresented: Bool
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [
-                        Color.blue.opacity(0.16),
-                        Color.purple.opacity(0.14),
-                        Color.orange.opacity(0.10)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                foodRecordBackground
+                    .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 18) {
+                    VStack(spacing: 20) {
                         if let image = viewModel.selectedImage {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Label("Photo Captured", systemImage: "camera.viewfinder")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundColor(.secondary)
-                                    Spacer()
-                                    Text(Date(), style: .time)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(height: 300)
-                                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                    .overlay(
-                                        LinearGradient(
-                                            colors: [.clear, .black.opacity(0.22)],
-                                            startPoint: .center,
-                                            endPoint: .bottom
-                                        )
-                                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                    )
-                            }
-                            .padding(14)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                            )
-                            .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 10)
+                            FoodCaptureHeroCard(image: image)
                             .padding(.horizontal)
-                            .padding(.top, 8)
+                            .padding(.top, 10)
                         }
 
                         if viewModel.isAnalyzing {
                             AIAnalyzingView()
                                 .padding(.horizontal)
+                                .transition(.identity)
                         }
 
                         if let errorMessage = viewModel.errorMessage {
                             VStack(spacing: 12) {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .font(.title2)
-                                    .foregroundColor(.red)
+                                    .foregroundColor(NutritionPalette.warningOrange)
                                 Text("Analysis Failed")
                                     .font(.headline)
                                 Text(errorMessage)
@@ -631,13 +593,30 @@ struct FoodRecordView: View {
                                 }
                                 .buttonStyle(.borderedProminent)
                             }
-                            .padding(18)
+                            .padding(20)
                             .frame(maxWidth: .infinity)
-                            .background(Color(UIColor.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .background(.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(Color.white.opacity(0.65), lineWidth: 1)
+                            )
                             .padding(.horizontal)
                         }
 
                         if let result = viewModel.analysisResult {
+                            HStack(spacing: 8) {
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(NutritionPalette.deepGreen)
+                                Text("Analysis complete. Review the nutrition details below.")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundColor(NutritionPalette.primaryText)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.white.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .padding(.horizontal)
+
                             NutritionResultCard(result: result)
                                 .padding(.horizontal)
 
@@ -652,33 +631,33 @@ struct FoodRecordView: View {
                                 }
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
+                                .padding(.vertical, 16)
                                 .background(
                                     LinearGradient(
-                                        colors: [Color.green, Color.mint],
+                                        colors: [NutritionPalette.deepGreen, Color(red: 0.27, green: 0.73, blue: 0.54)],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
                                 )
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .shadow(color: .green.opacity(0.3), radius: 10, x: 0, y: 6)
+                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .shadow(color: NutritionPalette.deepGreen.opacity(0.28), radius: 14, x: 0, y: 8)
                             }
                             .padding(.horizontal)
                         } else if !viewModel.isAnalyzing && viewModel.errorMessage == nil {
                             HStack(spacing: 10) {
                                 Image(systemName: "sparkles")
-                                    .foregroundColor(.blue)
-                                Text("Image uploaded. AI nutrition analysis incoming...")
+                                    .foregroundColor(NutritionPalette.deepGreen)
+                                Text("Photo received. Aura is preparing your nutrition breakdown...")
                                     .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(NutritionPalette.secondaryText)
                             }
-                            .padding(14)
+                            .padding(16)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(UIColor.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .padding(.horizontal)
                         }
                     }
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 28)
                 }
             }
             .navigationTitle("Food Record")
@@ -693,6 +672,7 @@ struct FoodRecordView: View {
                     }
                 }
             }
+            .toolbarBackground(.hidden, for: .navigationBar)
             .onAppear {
                 if viewModel.selectedImage != nil && viewModel.analysisResult == nil && !viewModel.isAnalyzing {
                     viewModel.analyzeImage()
@@ -700,12 +680,46 @@ struct FoodRecordView: View {
             }
         }
     }
+
+    private var foodRecordBackground: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.98, green: 0.97, blue: 0.99),
+                    Color(red: 0.94, green: 0.98, blue: 0.95),
+                    Color(red: 0.99, green: 0.96, blue: 0.92)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(Color(red: 0.46, green: 0.70, blue: 1.0).opacity(0.16))
+                .frame(width: 260, height: 260)
+                .blur(radius: 12)
+                .offset(x: 120, y: -250)
+
+            Circle()
+                .fill(Color(red: 0.72, green: 0.38, blue: 1.0).opacity(0.14))
+                .frame(width: 220, height: 220)
+                .blur(radius: 10)
+                .offset(x: -130, y: -120)
+
+            Circle()
+                .fill(Color(red: 0.34, green: 0.82, blue: 0.66).opacity(0.16))
+                .frame(width: 240, height: 240)
+                .blur(radius: 10)
+                .offset(x: -120, y: 260)
+        }
+    }
 }
 
 struct AIAnalyzingView: View {
-    @State private var spin = false
-    @State private var breathe = false
+    @State private var ringRotation: Double = -90
+    @State private var brainScale: CGFloat = 0.94
+    @State private var hasStartedAnimations = false
     @State private var stageIndex = 0
+    @State private var cycleTask: Task<Void, Never>?
 
     private let stages = [
         "Uploading image",
@@ -715,73 +729,267 @@ struct AIAnalyzingView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .stroke(Color.blue.opacity(0.15), lineWidth: 10)
-                    .frame(width: 88, height: 88)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("AI Nutrition Analysis", systemImage: "sparkles")
+                        .font(.headline.weight(.semibold))
+                        .foregroundColor(NutritionPalette.primaryText)
 
-                Circle()
-                    .trim(from: 0.15, to: 0.9)
-                    .stroke(
-                        AngularGradient(
-                            colors: [.blue, .purple, .pink, .blue],
-                            center: .center
-                        ),
-                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                    )
-                    .frame(width: 88, height: 88)
-                    .rotationEffect(.degrees(spin ? 360 : 0))
-                    .animation(.linear(duration: 1.2).repeatForever(autoreverses: false), value: spin)
+                    Text("Aura is inspecting the photo and estimating calories, macros, and meal quality.")
+                        .font(.subheadline)
+                        .foregroundColor(NutritionPalette.secondaryText)
+                }
 
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.blue)
-                    .scaleEffect(breathe ? 1.05 : 0.92)
-                    .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: breathe)
+                Spacer()
+
+                Text("Live")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Color(red: 0.29, green: 0.57, blue: 1.0))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(Color.blue.opacity(0.10), in: Capsule())
             }
 
-            VStack(spacing: 6) {
-                Text("AI Nutrition Analysis")
-                    .font(.headline)
-                Text(stages[stageIndex])
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            HStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color.blue.opacity(0.16),
+                                    Color.purple.opacity(0.08),
+                                    .clear
+                                ],
+                                center: .center,
+                                startRadius: 10,
+                                endRadius: 58
+                            )
+                        )
+                        .frame(width: 112, height: 112)
+
+                    Circle()
+                        .stroke(Color.blue.opacity(0.12), lineWidth: 10)
+                        .frame(width: 94, height: 94)
+
+                    Circle()
+                        .trim(from: 0.12, to: 0.88)
+                        .stroke(
+                            AngularGradient(
+                                colors: [
+                                    Color(red: 0.22, green: 0.53, blue: 1.0),
+                                    Color(red: 0.69, green: 0.35, blue: 0.98),
+                                    Color(red: 1.0, green: 0.41, blue: 0.70),
+                                    Color(red: 0.22, green: 0.53, blue: 1.0)
+                                ],
+                                center: .center
+                            ),
+                            style: StrokeStyle(lineWidth: 9, lineCap: .round)
+                        )
+                        .frame(width: 94, height: 94)
+                        .rotationEffect(.degrees(ringRotation))
+
+                    Circle()
+                        .fill(Color.white.opacity(0.84))
+                        .frame(width: 58, height: 58)
+                        .shadow(color: Color.blue.opacity(0.12), radius: 12, x: 0, y: 6)
+
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(Color(red: 0.24, green: 0.52, blue: 0.98))
+                        .scaleEffect(brainScale)
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(stages[stageIndex])
+                        .font(.title3.weight(.semibold))
+                        .foregroundColor(NutritionPalette.primaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        AnalysisCapabilityRow(icon: "camera.macro", title: "Food Recognition")
+                        AnalysisCapabilityRow(icon: "flame.fill", title: "Calorie Estimate")
+                        AnalysisCapabilityRow(icon: "chart.bar.xaxis", title: "Macro Breakdown")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
                 ForEach(Array(stages.enumerated()), id: \.offset) { index, _ in
                     Capsule()
-                        .fill(index <= stageIndex ? Color.blue : Color.gray.opacity(0.25))
-                        .frame(width: index == stageIndex ? 28 : 16, height: 6)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.9), value: stageIndex)
+                        .fill(index <= stageIndex ? Color(red: 0.24, green: 0.52, blue: 0.98) : Color.gray.opacity(0.18))
+                        .frame(width: index == stageIndex ? 30 : 16, height: 7)
                 }
             }
-        }
-        .padding(.vertical, 20)
-        .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-        )
-        .onAppear {
-            spin = true
-            breathe = true
 
-            Timer.scheduledTimer(withTimeInterval: 1.4, repeats: true) { timer in
-                stageIndex += 1
-                if stageIndex >= stages.count {
-                    stageIndex = 0
-                }
-                if !spin {
-                    timer.invalidate()
-                }
-            }
+            Text("This usually takes just a moment.")
+                .font(.footnote)
+                .foregroundColor(NutritionPalette.secondaryText)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.72), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.05), radius: 18, x: 0, y: 10)
+        .onAppear {
+            startVisualAnimationsIfNeeded()
+            startStageCycle()
         }
         .onDisappear {
-            spin = false
-            breathe = false
+            hasStartedAnimations = false
+            ringRotation = -90
+            brainScale = 0.94
+            cycleTask?.cancel()
+            cycleTask = nil
+        }
+    }
+
+    private func startVisualAnimationsIfNeeded() {
+        guard !hasStartedAnimations else { return }
+        hasStartedAnimations = true
+
+        // Use explicit numeric values to keep the ring stable at startup
+        // and avoid initial jitter from boolean-driven state transitions.
+        withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) {
+            ringRotation = 270
+        }
+        withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) {
+            brainScale = 1.06
+        }
+    }
+
+    private func startStageCycle() {
+        cycleTask?.cancel()
+        cycleTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_350_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    stageIndex = (stageIndex + 1) % stages.count
+                }
+            }
+        }
+    }
+}
+
+private struct FoodCaptureHeroCard: View {
+    let image: UIImage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                FoodRecordStatusChip(
+                    icon: "camera.viewfinder",
+                    title: "Photo Captured",
+                    tint: Color(red: 0.31, green: 0.73, blue: 0.51)
+                )
+
+                Spacer()
+
+                Text(Date(), style: .time)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(NutritionPalette.secondaryText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.88), in: Capsule())
+            }
+
+            ZStack(alignment: .bottomLeading) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 320)
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.48)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Ready for smart meal scan")
+                        .font(.headline.weight(.semibold))
+                        .foregroundColor(.white)
+
+                    Text("A clearer photo helps Aura return better calorie and macro estimates.")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.85))
+                }
+                .padding(20)
+            }
+
+            HStack(spacing: 10) {
+                FoodRecordStatusChip(
+                    icon: "sparkles",
+                    title: "AI Vision",
+                    tint: Color(red: 0.50, green: 0.39, blue: 0.98)
+                )
+                FoodRecordStatusChip(
+                    icon: "scalemass.fill",
+                    title: "Portion Estimate",
+                    tint: Color(red: 0.25, green: 0.62, blue: 0.94)
+                )
+                FoodRecordStatusChip(
+                    icon: "bolt.heart.fill",
+                    title: "Nutrition Insights",
+                    tint: Color(red: 0.98, green: 0.58, blue: 0.34)
+                )
+            }
+        }
+        .padding(18)
+        .background(.white.opacity(0.70), in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.white.opacity(0.72), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.06), radius: 18, x: 0, y: 10)
+    }
+}
+
+private struct FoodRecordStatusChip: View {
+    let icon: String
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        Label(title, systemImage: icon)
+            .font(.caption.weight(.semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                LinearGradient(
+                    colors: [tint, tint.opacity(0.78)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                ),
+                in: Capsule()
+            )
+    }
+}
+
+private struct AnalysisCapabilityRow: View {
+    let icon: String
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Color(red: 0.24, green: 0.52, blue: 0.98))
+                .frame(width: 30, height: 30)
+                .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(NutritionPalette.primaryText)
         }
     }
 }

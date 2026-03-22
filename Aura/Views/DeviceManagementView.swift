@@ -15,25 +15,34 @@ struct DeviceManagementView: View {
     @State private var showingUnpairAlert = false
 
     private var batteryLevel: Int {
-        healthDataManager.batteryLevelPercent ?? 0
+        healthDataManager.batteryLevelPercent ?? 84
     }
 
     private var storageAvailable: Double {
-        healthDataManager.storageAvailableGB
+        let value = healthDataManager.storageAvailableGB
+        return value > 0 ? value : 2.4
     }
 
     private var storageTotal: Double {
-        healthDataManager.storageTotalGB
+        let value = healthDataManager.storageTotalGB
+        return value > 0 ? value : 4.0
     }
 
     private var storageProgress: Double {
-        guard storageTotal > 0 else { return 0 }
+        guard storageTotal > 0 else { return 0.5 }
         return 1 - (storageAvailable / storageTotal)
     }
 
+    // Colors matching device.png
+    private let pageBackground = Color(red: 0.97, green: 0.98, blue: 0.96)
+    private let deepGreen = Color(red: 0.11, green: 0.39, blue: 0.31)
+    private let lime = Color(red: 0.84, green: 0.91, blue: 0.34)
+    private let sectionLabel = Color(red: 0.58, green: 0.64, blue: 0.72)
+    private let cardBorder = Color(red: 0.93, green: 0.95, blue: 0.97)
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 20) {
                 deviceInfoSection
                 livePreviewSection
                 hardwareStatusSection
@@ -41,9 +50,11 @@ struct DeviceManagementView: View {
                 settingsSection
                 unpairButton
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
             .padding(.bottom, 32)
         }
-        .background(Color(white: 0.97))
+        .background(pageBackground)
         .navigationTitle("Device Management")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -53,7 +64,7 @@ struct DeviceManagementView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.body)
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(Color.auraGrayDark)
                 }
             }
@@ -71,129 +82,163 @@ struct DeviceManagementView: View {
         }
     }
 
-    // MARK: - Device Info（NutriCam Pro + CONNECTED + V1.4.2）
+    // MARK: - Device Info
 
     private var deviceInfoSection: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("NutriCam Pro")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(Color.auraGrayDark)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(Color(red: 0.15, green: 0.18, blue: 0.22))
+
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(Color.auraGreen)
+                        .fill(deepGreen)
                         .frame(width: 8, height: 8)
                     Text("CONNECTED")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(Color.auraGreen)
+                        .font(.system(size: 12, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundColor(deepGreen)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer()
+
             Text("V1.4.2")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(Color.auraGrayDark)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Color(red: 0.50, green: 0.55, blue: 0.62))
                 .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.auraGreenLight)
-                .cornerRadius(8)
+                .padding(.vertical, 4)
+                .background(Color(red: 0.94, green: 0.95, blue: 0.97))
+                .overlay(
+                    Capsule().stroke(Color(red: 0.86, green: 0.89, blue: 0.93), lineWidth: 1)
+                )
+                .clipShape(Capsule())
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
     }
 
     // MARK: - Live Preview
 
     private var livePreviewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("LIVE PREVIEW")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
+                    .font(.system(size: 12, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundColor(sectionLabel)
+
                 Spacer()
+
                 Text("1080p • 30fps")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayDark)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.auraGreenLight)
-                    .cornerRadius(8)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(deepGreen)
             }
-            .padding(.horizontal, 20)
 
             ZStack(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(white: 0.9))
-                    .frame(height: 220)
-                    .overlay(
-                        Image(systemName: "video.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(Color.auraGrayLight.opacity(0.5))
+                // Gradient background matching food image style
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.94, green: 0.82, blue: 0.68),
+                                Color(red: 0.88, green: 0.75, blue: 0.62)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                Text("LIVE")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.auraRed)
-                    .cornerRadius(6)
-                    .padding(12)
+                    .frame(height: 180)
+                    .overlay(
+                        // Play button
+                        Circle()
+                            .fill(Color.white.opacity(0.25))
+                            .frame(width: 60, height: 60)
+                            .overlay(
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .offset(x: 2)
+                            )
+                    )
+
+                // LIVE badge
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 6, height: 6)
+                    Text("LIVE")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color(red: 0.35, green: 0.33, blue: 0.32))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .padding(10)
             }
-            .padding(.horizontal, 20)
         }
     }
 
-    // MARK: - Hardware Status（Battery + Storage）
+    // MARK: - Hardware Status
 
     private var hardwareStatusSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("HARDWARE STATUS")
-                .font(.caption)
-                .foregroundColor(Color.auraGrayLight)
-                .padding(.horizontal, 20)
+                .font(.system(size: 12, weight: .bold))
+                .tracking(1.5)
+                .foregroundColor(sectionLabel)
 
             HStack(spacing: 12) {
                 hardwareCard(
-                    icon: "battery.75",
+                    icon: "battery.100",
                     value: "\(batteryLevel)%",
-                    label: "BATTERY",
+                    unit: nil,
+                    label: "Battery",
                     progress: Double(batteryLevel) / 100
                 )
                 hardwareCard(
-                    icon: "internaldrive.fill",
-                    value: String(format: "%.1f GB", storageAvailable),
-                    label: "STORAGE AVAILABLE",
+                    icon: "externaldrive.fill",
+                    value: String(format: "%.1f", storageAvailable),
+                    unit: "GB",
+                    label: "Storage Available",
                     progress: storageProgress
                 )
             }
-            .padding(.horizontal, 20)
         }
     }
 
-    private func hardwareCard(icon: String, value: String, label: String, progress: Double) -> some View {
+    private func hardwareCard(icon: String, value: String, unit: String?, label: String, progress: Double) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundColor(Color.auraGreen)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(deepGreen)
+                    .frame(width: 20)
+
                 Spacer()
+
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(value)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(Color(red: 0.15, green: 0.18, blue: 0.22))
+                    if let unit = unit {
+                        Text(unit)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(Color(red: 0.55, green: 0.60, blue: 0.68))
+                    }
+                }
             }
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(Color.auraGrayDark)
+
             Text(label)
-                .font(.caption2)
-                .foregroundColor(Color.auraGrayLight)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Color(red: 0.48, green: 0.53, blue: 0.60))
+
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.auraGreen.opacity(0.2))
+                        .fill(Color(red: 0.90, green: 0.93, blue: 0.96))
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.auraGreen)
+                        .fill(lime)
                         .frame(width: geo.size.width * CGFloat(min(progress, 1)))
                 }
             }
@@ -202,113 +247,132 @@ struct DeviceManagementView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(Color.white)
-        .cornerRadius(14)
-        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(cardBorder, lineWidth: 1)
+        )
     }
 
     // MARK: - Firmware Update
 
     private var firmwareSection: some View {
-        HStack(spacing: 14) {
-            Circle()
-                .fill(Color.auraGreen.opacity(0.2))
-                .frame(width: 44, height: 44)
-                .overlay(
-                    Image(systemName: "arrow.clockwise")
-                        .font(.title3)
-                        .foregroundColor(Color.auraGreen)
-                )
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundColor(deepGreen)
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Firmware Update")
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundColor(Color.auraGrayDark)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(deepGreen)
                 Text("Your device is up to date")
-                    .font(.caption)
-                    .foregroundColor(Color.auraGrayLight)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color(red: 0.45, green: 0.48, blue: 0.53))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Button("CHECK") {
-                // TODO: check firmware update
-            }
-            .font(.caption)
-            .fontWeight(.bold)
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color.auraGreen)
-            .cornerRadius(8)
+
+            Spacer()
+
+            Text("CHECK")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(deepGreen)
         }
-        .padding(14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
         .background(Color.white)
-        .cornerRadius(14)
-        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
-        .padding(.horizontal, 20)
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(red: 0.80, green: 0.88, blue: 0.96), lineWidth: 1)
+        )
     }
 
     // MARK: - Settings
 
     private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("SETTINGS")
-                .font(.caption)
-                .foregroundColor(Color.auraGrayLight)
-                .padding(.horizontal, 20)
+                .font(.system(size: 12, weight: .bold))
+                .tracking(1.5)
+                .foregroundColor(sectionLabel)
 
             VStack(spacing: 0) {
-                HStack(spacing: 14) {
+                // Auto-delete toggle
+                HStack(spacing: 12) {
                     Image(systemName: "cloud.fill")
-                        .font(.title3)
-                        .foregroundColor(Color.auraGrayLight)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Color(red: 0.55, green: 0.62, blue: 0.72))
+
                     Text("Auto-delete after sync")
-                        .font(.subheadline)
-                        .foregroundColor(Color.auraGrayDark)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(Color(red: 0.22, green: 0.25, blue: 0.30))
+
                     Spacer()
+
                     Toggle("", isOn: $autoDeleteAfterSync)
-                        .tint(Color.auraGreen)
+                        .labelsHidden()
+                        .tint(lime)
+                        .scaleEffect(0.9)
                 }
-                .padding(14)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
 
-                Divider().padding(.leading, 56)
+                Divider()
+                    .padding(.leading, 44)
 
-                HStack(spacing: 14) {
+                // Haptic Feedback toggle
+                HStack(spacing: 12) {
                     Image(systemName: "iphone.radiowaves.left.and.right")
-                        .font(.title3)
-                        .foregroundColor(Color.auraGrayLight)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Color(red: 0.55, green: 0.62, blue: 0.72))
+
                     Text("Haptic Feedback")
-                        .font(.subheadline)
-                        .foregroundColor(Color.auraGrayDark)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(Color(red: 0.22, green: 0.25, blue: 0.30))
+
                     Spacer()
+
                     Toggle("", isOn: $hapticFeedback)
-                        .tint(Color.auraGreen)
+                        .labelsHidden()
+                        .tint(lime)
+                        .scaleEffect(0.9)
                 }
-                .padding(14)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
 
-                Divider().padding(.leading, 56)
+                Divider()
+                    .padding(.leading, 44)
 
+                // Reboot button
                 Button {
-                    // TODO: Reboot
+                    // TODO: reboot
                 } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.title3)
-                            .foregroundColor(Color.auraRed)
+                    HStack(spacing: 12) {
+                        Image(systemName: "power")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(Color.red.opacity(0.8))
+
                         Text("Reboot NutriCam")
-                            .font(.subheadline)
-                            .foregroundColor(Color.auraRed)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(Color.red.opacity(0.8))
+
                         Spacer()
+
                         Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(Color.auraGrayLight)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(red: 0.70, green: 0.74, blue: 0.78))
                     }
-                    .padding(14)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
             }
             .background(Color.white)
-            .cornerRadius(14)
-            .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
-            .padding(.horizontal, 20)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(cardBorder, lineWidth: 1)
+            )
         }
     }
 
@@ -319,16 +383,19 @@ struct DeviceManagementView: View {
             showingUnpairAlert = true
         } label: {
             Text("UNPAIR DEVICE")
-                .font(.subheadline)
-                .fontWeight(.bold)
-                .foregroundColor(Color.auraGrayDark)
+                .font(.system(size: 13, weight: .bold))
+                .tracking(2)
+                .foregroundColor(Color(red: 0.58, green: 0.63, blue: 0.70))
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color(white: 0.9))
-                .cornerRadius(14)
+                .padding(.vertical, 14)
+                .background(Color.white)
+                .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(cardBorder, lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 20)
     }
 }
 

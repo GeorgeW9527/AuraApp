@@ -22,7 +22,6 @@ struct UserProfileView: View {
     @State private var healthGoalRaw = "weight_loss"
     @State private var notificationsEnabled = true
     @State private var useMetric = true
-    @State private var showingEditProfile = false
     @State private var showingLogoutAlert = false
     @State private var isSavingProfile = false
     @State private var showingAvatarSourceSheet = false
@@ -48,7 +47,7 @@ struct UserProfileView: View {
             }
             .padding(.bottom, 32)
         }
-        .background(Color(white: 0.97))
+        .background(Color(red: 0.97, green: 0.98, blue: 0.96))
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -62,20 +61,6 @@ struct UserProfileView: View {
                         .foregroundColor(Color.auraGrayDark)
                 }
             }
-        }
-        .sheet(isPresented: $showingEditProfile) {
-            EditProfileView(
-                userName: $userName,
-                height: $height,
-                weight: $weight,
-                age: $age,
-                gender: $gender,
-                restingHeartRate: $restingHeartRate,
-                healthGoalRaw: $healthGoalRaw,
-                useMetric: $useMetric,
-                isSaving: $isSavingProfile,
-                onSave: saveProfile
-            )
         }
         .alert("Log Out", isPresented: $showingLogoutAlert) {
             Button("Cancel", role: .cancel) {}
@@ -283,22 +268,28 @@ struct UserProfileView: View {
                 .padding(.horizontal, 20)
 
             VStack(spacing: 0) {
-                SettingsNavRow(
-                    icon: "person.fill",
-                    iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
-                    title: "Body Profile",
-                    subtitle: "Height, Weight, Biometrics"
-                ) { showingEditProfile = true }
+                NavigationLink(destination: BodyProfileView()) {
+                    SettingsNavRowContent(
+                        icon: "person.fill",
+                        iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
+                        title: "Body Profile",
+                        subtitle: "Height, Weight, Biometrics"
+                    )
+                }
+                .buttonStyle(.plain)
 
                 Divider().padding(.leading, 72)
 
-                SettingsNavRow(
-                    icon: "target",
-                    iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
-                    title: "Goal Settings",
-                    subtitle: "Daily calorie & nutrition targets",
-                    showAIBadge: true
-                ) { /* TODO */ }
+                NavigationLink(destination: GoalSettingsView()) {
+                    SettingsNavRowContent(
+                        icon: "target",
+                        iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
+                        title: "Goal Settings",
+                        subtitle: "Daily calorie & nutrition targets",
+                        showAIBadge: true
+                    )
+                }
+                .buttonStyle(.plain)
 
                 Divider().padding(.leading, 72)
 
@@ -308,6 +299,18 @@ struct UserProfileView: View {
                         iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
                         title: "Smart Report",
                         subtitle: "Comprehensive health & nutrition insights"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Divider().padding(.leading, 72)
+
+                NavigationLink(destination: HealthProfileQuestionnaireView()) {
+                    SettingsNavRowContent(
+                        icon: "clipboard.fill",
+                        iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
+                        title: "Health Questionnaire",
+                        subtitle: "Review and update your health profile"
                     )
                 }
                 .buttonStyle(.plain)
@@ -341,12 +344,15 @@ struct UserProfileView: View {
 
                 Divider().padding(.leading, 56)
 
-                SettingsNavRow(
-                    icon: "shield.fill",
-                    iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
-                    title: "Privacy & Data",
-                    subtitle: nil
-                ) { /* TODO */ }
+                NavigationLink(destination: PrivacyDataView()) {
+                    SettingsNavRowContent(
+                        icon: "shield.fill",
+                        iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
+                        title: "Privacy & Data",
+                        subtitle: nil
+                    )
+                }
+                .buttonStyle(.plain)
             }
             .background(Color.white)
             .cornerRadius(16)
@@ -364,13 +370,16 @@ struct UserProfileView: View {
                 .padding(.horizontal, 20)
 
             VStack(spacing: 0) {
-                SettingsNavRow(
-                    icon: "questionmark.circle.fill",
-                    iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
-                    title: "Help Center",
-                    subtitle: nil,
-                    showExternalLink: true
-                ) { /* TODO */ }
+                NavigationLink(destination: HelpCenterView()) {
+                    SettingsNavRowContent(
+                        icon: "questionmark.circle.fill",
+                        iconColor: Color(red: 0.11, green: 0.39, blue: 0.31),
+                        title: "Help Center",
+                        subtitle: nil,
+                        showExternalLink: true
+                    )
+                }
+                .buttonStyle(.plain)
 
                 Divider().padding(.leading, 72)
 
@@ -554,71 +563,6 @@ struct SettingsNavRow: View {
             )
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Edit Profile
-
-struct EditProfileView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var userName: String
-    @Binding var height: Int
-    @Binding var weight: Int
-    @Binding var age: Int
-    @Binding var gender: String
-    @Binding var restingHeartRate: Int
-    @Binding var healthGoalRaw: String
-    @Binding var useMetric: Bool
-    @Binding var isSaving: Bool
-    let onSave: () async -> Void
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("Basic Info")) {
-                    TextField("Display Name (optional)", text: $userName)
-                    Picker("Gender", selection: $gender) {
-                        Text("Male").tag("男")
-                        Text("Female").tag("女")
-                    }
-                    Stepper("Age: \(age)", value: $age, in: 1...120)
-                }
-                Section(header: Text("Body Metrics")) {
-                    Picker("Units", selection: $useMetric) {
-                        Text("Metric (cm/kg)").tag(true)
-                        Text("Imperial (ft/lb)").tag(false)
-                    }
-                    Stepper("Height: \(height) cm", value: $height, in: 100...250)
-                    Stepper("Weight: \(weight) kg", value: $weight, in: 30...200)
-                    Stepper("Resting HR: \(restingHeartRate) BPM", value: $restingHeartRate, in: 40...120)
-                }
-                Section(header: Text("Health Goal")) {
-                    Picker("Primary Goal", selection: $healthGoalRaw) {
-                        Text("Weight Loss").tag("weight_loss")
-                        Text("Balanced Diet").tag("balanced_diet")
-                        Text("Build Muscle").tag("build_muscle")
-                    }
-                }
-            }
-            .navigationTitle("Edit Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        Task {
-                            await onSave()
-                            dismiss()
-                        }
-                    }
-                    .fontWeight(.semibold)
-                    .foregroundColor(Color.auraGreen)
-                    .disabled(isSaving)
-                }
-            }
-        }
     }
 }
 

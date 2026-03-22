@@ -137,7 +137,7 @@ class NutritionViewModel: ObservableObject {
         // 构建API请求
         print("\n📡 构建API请求...")
         print("🌐 API端点: \(APIConfig.openAIEndpoint)")
-        print("🤖 模型: \(APIConfig.openAIModel)")
+        print("🤖 模型: \(APIConfig.nutritionModel)")
         print("🔑 API密钥: \(APIConfig.openAIAPIKey)")
         print("🔑 密钥长度: \(APIConfig.openAIAPIKey.count) 字符")
         
@@ -221,7 +221,7 @@ class NutritionViewModel: ObservableObject {
         ]
         
         let requestBody: [String: Any] = [
-            "model": APIConfig.openAIModel,
+            "model": APIConfig.nutritionModel,
             "messages": messages,
             "max_tokens": 500,
             "temperature": 0.7
@@ -232,7 +232,7 @@ class NutritionViewModel: ObservableObject {
         let requestBodySize = request.httpBody?.count ?? 0
         print("✅ 请求体构建完成: \(requestBodySize) bytes (\(requestBodySize / 1024) KB)")
         print("📊 请求参数:")
-        print("   - model: \(APIConfig.openAIModel)")
+        print("   - model: \(APIConfig.nutritionModel)")
         print("   - max_tokens: 500")
         print("   - temperature: 0.7")
         print("   - 图片Base64长度: \(base64Image.count)")
@@ -272,7 +272,7 @@ class NutritionViewModel: ObservableObject {
                     print("   1. API密钥无效或过期")
                     print("   2. 中转服务的Cloudflare防护")
                     print("   3. IP被限制")
-                    print("   4. 模型名称不支持: \(APIConfig.openAIModel)")
+                    print("   4. 模型名称不支持: \(APIConfig.nutritionModel)")
                     print("💡 建议:")
                     print("   - 检查中转服务商的控制台")
                     print("   - 确认API密钥是否有效")
